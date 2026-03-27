@@ -814,134 +814,136 @@ startBtn.addEventListener('click', async () => {
 });
 
 /* =====================================================
-   MINDAR INTEGRATION (Image Tracking)
+   MINDAR INTEGRATION — The Complete Brain (v2)
+   Upload dish photos → MindAR Compiler → .mind file
+   https://hiukim.github.io/mind-ar-js-doc/tools/compile
    ===================================================== */
 async function initMindAR(cameraStream) {
-    // MindAR needs a compiled .mind file from target images.
-    // In production: upload dish photos to MindAR Image Compiler
-    //   https://hiukim.github.io/mind-ar-js-doc/tools/compile
-    // then reference the .mind file below.
     const MIND_FILE = 'assets/targets/menu_targets.mind';
 
     try {
-        // Check if MindAR is available (CDN loaded)
-        if (typeof MINDAR === 'undefined' && typeof window.MINDAR === 'undefined') {
-            throw new Error('MindAR not loaded');
-        }
+        if (typeof window.MINDAR === 'undefined') throw new Error('MindAR not loaded');
 
-        const MindAR = window.MINDAR || MINDAR;
-
-        const mindarController = new MindAR.IMAGE.Controller({
+        const mindarController = new window.MINDAR.IMAGE.Controller({
             inputWidth:  640,
             inputHeight: 480,
-            onUpdate: ({ hasDimension, processingList }) => {
-                if (!processingList || processingList.length === 0) {
-                    setConfidence(0);
-                    reticle.classList.remove('locked');
-                    reticle.classList.add('scanning');
-                    scanShimmer.classList.add('shimmer-active');
-                    return;
-                }
-
-                let best = null;
-                let bestScore = 0;
-                processingList.forEach((result, idx) => {
-                    if (result && result.maxSimilarity > bestScore) {
-                        bestScore = result.maxSimilarity;
-                        best = { result, targetIndex: idx };
-                    }
-                });
-
-                if (best) {
-                    const score = best.result.maxSimilarity;
-                    setConfidence(score);
-                    evaluateHybridTrigger(best.targetIndex, score);
-                }
-            }
+            maxTrack:    1   // single-target tracking for maximum accuracy
         });
 
-        await mindarController.setup({ imageTargetSrc: MIND_FILE });
+        await mindarController.setup(cameraStream);
+        await mindarController.addImageTargets(MIND_FILE);
 
-        const video = document.createElement('video');
-        video.srcObject = cameraStream;
-        video.setAttribute('playsinline', '');
-        await mindarController.processVideo(video);
+        // Continuous rAF tracking loop
+        const tick = () => {
+            const results = mindarController.processVideo(videoBg);
 
+            if (results && results.length > 0 && results[0].score > MIN_SCORE) {
+                const foundIndex = results[0].targetIndex;
+                const confidence = Math.round(results[0].score * 100);
+
+                setConfidence(confidence);
+
+                // Secondary gate: dining angle check
+                if (STATE.tiltOK) {
+                    lockAndShow(foundIndex, confidence);
+                } else {
+                    // Image match but wrong tilt — visual feedback only
+                    reticle.className = 'locked';
+                    tiltHint.classList.add('show');
+                    $('status-text').innerText = 'ADJUST ANGLE';
+                }
+            } else {
+                // Signal lost — decay meter and reset reticle
+                tiltHint.classList.remove('show');
+                decayConfidence();
+            }
+
+            window.requestAnimationFrame(tick);
+        };
+
+        tick();
         STATE.mindARActive = true;
-        console.log('MindAR active ✓');
+        $('status-text').innerText = 'ENGINE READY';
+        showToast('AR ENGINE ACTIVE');
 
-    } catch (e) {
-        // MindAR not available or .mind file missing — fall back to simulated mode
-        console.warn('MindAR fallback (demo mode):', e.message);
+    } catch (err) {
+        console.warn('Image Tracking unavailable — falling back to Demo Mode.', err);
+        $('status-text').innerText = 'DEMO MODE';
         runSimulatedTracking();
     }
 }
 
 /* =====================================================
-   HYBRID TRIGGER ENGINE
-   Primary: Image score > 70%
-   Secondary: Tilt 30°–70°
+   CORE ACTION — Lock & Display Dish Card
    ===================================================== */
-function evaluateHybridTrigger(targetIndex, score) {
-    STATE.matchScore = score;
+function lockAndShow(index, score) {
+    // Dedup guard: ignore repeat triggers for same dish
+    if (STATE.lastFoundIndex === index && STATE.cardVisible) return;
 
-    const dish = RESTAURANT.menu_items.find(d => d.target_index === targetIndex);
+    const dish = RESTAURANT.menu_items.find(item => item.target_index === index);
     if (!dish) return;
 
-    const imageLock  = score >= MIN_SCORE;
-    const tiltLock   = STATE.tiltOK;
+    STATE.currentItem    = dish;
+    STATE.lastFoundIndex = index;
 
-    if (imageLock && tiltLock) {
-        // Both conditions met — show card
-        reticle.classList.remove('scanning');
-        reticle.classList.add('locked');
-        scanShimmer.classList.remove('shimmer-active');
-        $('status-text').textContent = 'LOCKED';
+    // Populate card fields
+    $('card-title').innerText    = dish.name;
+    $('card-desc').innerText     = dish.description;
+    $('card-category').innerText = dish.category;
+    $('score-display').innerText = score + '%';
 
-        if (STATE.lastFoundIndex !== targetIndex || !STATE.cardVisible) {
-            STATE.lastFoundIndex = targetIndex;
-            showDishCard(dish, score);
-        }
-        tiltHint.classList.remove('show');
+    // Ingredients — template-string render (fast, testable)
+    $('ingredients-wrap').innerHTML =
+        dish.ingredients_list.map(ing =>
+            `<span class="ingredient-tag">${ing}</span>`
+        ).join('');
 
-    } else if (imageLock && !tiltLock) {
-        // Image found but tilt wrong
-        reticle.classList.remove('scanning');
-        reticle.classList.add('locked');
-        tiltHint.classList.add('show');
-        $('status-text').textContent = 'ADJUST ANGLE';
-
+    // Allergy banner
+    if (dish.allergy_warnings) {
+        $('allergy-banner').style.display = 'flex';
+        $('allergy-text').innerText = dish.allergy_warnings;
     } else {
-        // Searching
-        reticle.classList.remove('locked');
-        reticle.classList.add('scanning');
-        scanShimmer.classList.add('shimmer-active');
-        tiltHint.classList.remove('show');
-        $('status-text').textContent = 'SCANNING';
-
-        if (STATE.cardVisible && score < MIN_SCORE * 0.6) {
-            dismissCard();
-        }
+        $('allergy-banner').style.display = 'none';
     }
+
+    // Animate card in
+    arCard.classList.remove('dismissing');
+    arCard.classList.add('visible');
+    STATE.cardVisible = true;
+
+    // Reticle → locked state
+    reticle.className = 'locked';
+    scanShimmer.classList.remove('shimmer-active');
+    $('status-text').innerText = 'LOCKED';
+    tiltHint.classList.remove('show');
+
+    showToast(`DISH IDENTIFIED: ${dish.name}`);
 }
 
 /* =====================================================
-   DEVICE ORIENTATION — TILT CHECK
+   DEVICE ORIENTATION — Tilt Gate (30°–70°)
    ===================================================== */
 function onDeviceOrientation(e) {
-    // beta = front-to-back tilt (0° = flat, 90° = upright)
-    let beta = e.beta !== null ? Math.abs(e.beta) : 45;
-    beta = Math.min(beta, 90);
+    // beta: 0° = phone flat, 90° = phone upright (portrait held at table)
+    let tilt = Math.abs(e.beta);
+    STATE.tiltAngle = tilt;
 
-    STATE.tiltAngle = beta;
-    STATE.tiltOK = (beta >= MIN_TILT && beta <= MAX_TILT);
+    // Map tilt into the valid zone for visual thumb position
+    let percent = ((tilt - MIN_TILT) / (MAX_TILT - MIN_TILT)) * 100;
+    percent = Math.max(0, Math.min(100, percent));
+    tiltThumb.style.top = `${100 - percent}%`;  // inverted: top=100% at MIN, top=0% at MAX
 
-    // Update tilt thumb (0° → top, 90° → bottom of 89px track)
-    const pct = beta / 90;
-    const trackH = 89;
-    tiltThumb.style.top = `${pct * trackH - 4}px`;
+    if (tilt >= MIN_TILT && tilt <= MAX_TILT) {
+        STATE.tiltOK = true;
+        tiltHint.classList.remove('show');
+        tiltThumb.style.background = 'var(--gold)';
+    } else {
+        STATE.tiltOK = false;
+        if (STATE.started && !STATE.cardVisible) tiltHint.classList.add('show');
+        tiltThumb.style.background = '#ff4b2b';  // red = wrong angle
+    }
 
-    // Status dot color
+    // Status dot reflects tilt validity
     const dot = $('status-dot');
     dot.style.background = STATE.tiltOK ? '#4caf50' : '#ffb400';
     dot.style.boxShadow  = `0 0 8px ${STATE.tiltOK ? '#4caf50' : '#ffb400'}`;
@@ -949,127 +951,120 @@ function onDeviceOrientation(e) {
 
 /* =====================================================
    CONFIDENCE METER
+   Accepts 0–100 integer (already scaled before call)
    ===================================================== */
-function setConfidence(score) {
-    const pct = Math.round(score * 100);
-    confFill.style.width = pct + '%';
-    confValue.textContent = pct + '%';
+function setConfidence(val) {
+    confFill.style.width = val + '%';
+    confValue.innerText  = val + '%';
+}
+
+function decayConfidence() {
+    const current = parseInt(confFill.style.width) || 0;
+    if (current > 0) {
+        // PATCHED: Math.max prevents negative width values
+        setConfidence(Math.max(0, current - 5));
+    } else {
+        // Fully decayed — scanning state
+        reticle.className = 'scanning';
+        scanShimmer.classList.add('shimmer-active');
+        if (STATE.cardVisible) dismissCard();
+    }
 }
 
 /* =====================================================
-   CARD RENDER & SHOW
+   DISMISS CARD
    ===================================================== */
-function showDishCard(dish, score) {
-    $('card-category').textContent = dish.category;
-    $('card-title').textContent     = dish.name;
-    $('card-desc').textContent      = dish.description;
-    $('score-display').textContent  = Math.round(score * 100) + '%';
-
-    // Ingredients
-    const wrap = $('ingredients-wrap');
-    wrap.innerHTML = '';
-    dish.ingredients_list.forEach(ing => {
-        const tag = document.createElement('div');
-        tag.className = 'ingredient-tag';
-        tag.textContent = ing;
-        wrap.appendChild(tag);
-    });
-
-    // Allergy
-    const allergyBanner = $('allergy-banner');
-    if (dish.allergy_warnings) {
-        $('allergy-text').textContent = dish.allergy_warnings;
-        allergyBanner.style.display = 'flex';
-    } else {
-        allergyBanner.style.display = 'none';
-    }
-
-    // Video CTA
-    $('btn-video').onclick = () => openVideoModal(dish.video_preview, dish.name);
-
-    // Animate in
-    arCard.classList.remove('dismissing');
-    arCard.classList.add('visible');
-    STATE.cardVisible = true;
-    STATE.currentItem = dish;
-
-    showToast('DISH DETECTED');
-}
-
 function dismissCard() {
     arCard.classList.add('dismissing');
     arCard.classList.remove('visible');
-    setTimeout(() => arCard.classList.remove('dismissing'), 450);
-    STATE.cardVisible = false;
-    STATE.currentItem = null;
+    setTimeout(() => arCard.classList.remove('dismissing'), 400);
+    STATE.cardVisible    = false;
+    STATE.currentItem    = null;
     STATE.lastFoundIndex = -1;
-    $('status-text').textContent = 'SCANNING';
-    reticle.classList.remove('locked');
-    reticle.classList.add('scanning');
+    $('status-text').innerText = 'SCANNING';
+    reticle.className = 'scanning';
     scanShimmer.classList.add('shimmer-active');
 }
 
-$('btn-dismiss').addEventListener('click', dismissCard);
-$('card-handle').addEventListener('click', dismissCard);
+$('btn-dismiss').onclick  = dismissCard;
+$('card-handle').onclick  = dismissCard;
 
 /* =====================================================
    VIDEO MODAL
    ===================================================== */
-function openVideoModal(src, title) {
+$('btn-video').onclick = () => {
+    if (!STATE.currentItem) return;
     const modal = $('video-modal');
-    const vid   = $('modal-video');
-    vid.src = src;
-    vid.play().catch(() => {});
+    const v     = $('modal-video');
+    v.src = STATE.currentItem.video_preview;
     modal.classList.add('open');
-}
-$('modal-close').addEventListener('click', () => {
+    v.play().catch(() => {});
+};
+
+$('modal-close').onclick = () => {
     $('video-modal').classList.remove('open');
     $('modal-video').pause();
     $('modal-video').src = '';
-});
+};
 
 /* =====================================================
    TOAST
    ===================================================== */
 function showToast(msg) {
-    toast.textContent = msg;
+    toast.innerText = msg;
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2200);
+    setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
 /* =====================================================
    SIMULATED DEMO TRACKING
-   (Used when MindAR .mind file is absent — shows the
-    full UI flow for demonstration / design preview)
+   Activates automatically when MindAR / .mind file is
+   unavailable — demonstrates the full UI flow.
    ===================================================== */
 function runSimulatedTracking() {
-    let simPhase = 0;
-    let confidence = 0;
     const dishes = RESTAURANT.menu_items;
+    let simPhase = 0;
 
-    // Simulate a scanning → match cycle every 6 seconds
-    setInterval(() => {
-        simPhase = (simPhase + 1) % (dishes.length * 2);
-        const dishIdx = Math.floor(simPhase / 2);
-        const isMatch = simPhase % 2 === 1;
+    // Build an ascending confidence ramp then trigger lock
+    let rampValue  = 0;
+    let ramping    = false;
+    let targetIdx  = 0;
 
-        if (isMatch) {
-            confidence = 0.72 + Math.random() * 0.22;
-            setConfidence(confidence);
-            evaluateHybridTrigger(dishes[dishIdx].target_index, confidence);
+    const rampInterval = setInterval(() => {
+        if (!ramping) {
+            // Reset and pick next dish
+            targetIdx = simPhase % dishes.length;
+            rampValue = 0;
+            ramping   = true;
+            reticle.className = 'scanning';
+            scanShimmer.classList.add('shimmer-active');
+            $('status-text').innerText = 'SCANNING';
+            setConfidence(0);
         } else {
-            confidence = Math.random() * 0.5;
-            setConfidence(confidence);
-            evaluateHybridTrigger(dishes[dishIdx].target_index, confidence);
-        }
-    }, 3000);
+            rampValue += 8 + Math.random() * 6;
+            if (rampValue >= 100) rampValue = 100;
+            setConfidence(Math.round(rampValue));
 
-    // Simulate tilt OK after 1s
+            if (rampValue >= 72 && STATE.tiltOK) {
+                lockAndShow(dishes[targetIdx].target_index, Math.round(rampValue));
+                ramping = false;
+                simPhase++;
+                // Auto-dismiss after 4s then scan next dish
+                setTimeout(() => dismissCard(), 4000);
+            }
+        }
+    }, 350);
+
+    // Ensure tilt is valid for demo
     setTimeout(() => {
         STATE.tiltAngle = 50;
-        STATE.tiltOK = true;
-        tiltThumb.style.top = '44px';
-    }, 1200);
+        STATE.tiltOK    = true;
+        tiltThumb.style.top        = '50%';
+        tiltThumb.style.background = 'var(--gold)';
+        const dot = $('status-dot');
+        dot.style.background = '#4caf50';
+        dot.style.boxShadow  = '0 0 8px #4caf50';
+    }, 800);
 
     showToast('DEMO MODE ACTIVE');
 }
