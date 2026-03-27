@@ -3,98 +3,167 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Golden Portal V1</title>
+    <title>Golden Portal | Spatial Core V5</title>
     <style>
-        /* INVISIBLE GOLDEN RATIO SYSTEM */
-        :root { --phi: 1.618; --gold: #d4af37; }
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
-        
-        /* PHI-BASED LAYOUT */
-        #ui-layer { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
-        
-        /* WEATHER BADGE (Top-Right) */
-        #weather { 
-            position: absolute; top: 20px; right: 20px; 
-            background: rgba(0,0,0,0.5); color: #fff; 
-            padding: calc(5px * var(--phi)); border-radius: 10px; font-size: 12px;
+        /* THE GOLDEN RATIO (PHI) INVISIBLE SYSTEM 
+           Every dimension is derived from 1.618 
+        */
+        :root { 
+            --phi: 1.61803398875; 
+            --gold: #d4af37;
+            --base-unit: 20px;
         }
 
-        /* GUIDANCE ARROW (Top 30%) */
-        #arrow { 
-            margin-top: 30vh; font-size: 50px; color: var(--gold); 
-            transition: 0.3s; opacity: 0; 
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; }
+
+        /* PHASE 1: BRANDING (Phi-Scaled Layout) */
+        #phase-branding {
+            position: fixed; inset: 0; z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+            transition: transform 1.2s cubic-bezier(0.7, 0, 0.3, 1);
         }
 
-        /* INFO CARD (Bottom 30%) */
-        #card { 
-            position: absolute; bottom: 10%; 
-            width: calc(100% / var(--phi)); 
-            background: rgba(255,255,255,0.1); backdrop-filter: blur(15px);
-            border: 1px solid var(--gold); border-radius: 20px;
-            padding: calc(15px * var(--phi)); color: #fff;
-            transform: translateY(200%); transition: 0.5s; pointer-events: auto;
+        .welcome-box {
+            text-align: center;
+            width: calc(100% / var(--phi)); /* Phi-width for visual comfort */
+            padding: calc(var(--base-unit) * var(--phi));
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            border-radius: calc(10px * var(--phi));
+            background: rgba(255,255,255,0.02);
+            backdrop-filter: blur(10px);
         }
-        #card.active { transform: translateY(0); }
-        
-        video { width: 100%; height: 100%; object-fit: cover; }
+
+        #start-trigger {
+            width: calc(60px * var(--phi)); 
+            height: calc(60px * var(--phi));
+            border-radius: 50%;
+            border: 1px solid var(--gold);
+            background: transparent; color: var(--gold);
+            cursor: pointer; font-size: 0.8rem; letter-spacing: 2px;
+            margin-top: calc(var(--base-unit) * var(--phi));
+            transition: 0.5s;
+        }
+
+        /* PHASE 2: SPATIAL AR (Invisible Grid) */
+        #phase-ar { position: fixed; inset: 0; z-index: 1; display: none; opacity: 0; transition: 1s; }
+        #camera-view { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Guidance Arrow (Phi-Positioned) */
+        #ar-guide {
+            position: absolute; 
+            top: calc(100% / (var(--phi) * 3)); /* Positioned at the Golden Point */
+            left: 50%; transform: translateX(-50%);
+            z-index: 10; color: var(--gold); font-size: 2rem;
+            display: none; transition: 0.3s;
+        }
+
+        /* Information Card (Glassmorphism + Phi Dimensions) */
+        .info-overlay {
+            position: absolute; 
+            bottom: calc(var(--base-unit) * var(--phi));
+            left: calc(100% - (100% / var(--phi))); /* Invisible Golden Alignment */
+            right: 5%;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(15px);
+            border: 1px solid var(--gold); 
+            padding: calc(var(--base-unit) * 1.2); 
+            border-radius: calc(15px * var(--phi));
+            transform: translateY(150%); transition: 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .info-overlay.active { transform: translateY(0); }
+
+        h1 { font-size: calc(1.2rem * var(--phi)); margin: 0; color: var(--gold); }
+        p { font-size: calc(1.2rem / var(--phi)); opacity: 0.8; line-height: var(--phi); }
+
     </style>
 </head>
 <body>
-    <div id="ui-layer">
-        <div id="weather">Loading weather...</div>
-        <div id="arrow">➔</div>
-        <div id="card">
-            <h2 id="dish-name" style="margin:0; color:var(--gold)"></h2>
-            <p id="dish-info"></p>
+
+    <div id="phase-branding">
+        <div class="welcome-box">
+            <h2 id="ui-brand-name" style="font-weight: 300; letter-spacing: 4px;">...</h2>
+            <p id="ui-welcome-msg">...</p>
+            <button id="start-trigger">ENTER</button>
         </div>
     </div>
-    <video id="cam" autoplay playsinline></video>
+
+    <div id="phase-ar">
+        <video id="camera-view" autoplay playsinline></video>
+        <div id="ar-guide">➔</div>
+        <div id="info-card" class="info-overlay">
+            <h1 id="item-title"></h1>
+            <p id="item-desc"></p>
+        </div>
+    </div>
+
+    <audio id="core-audio"></audio>
 
     <script>
-        const apiKey = '6ce2f9889336bf354a6a47b507723d3a';
-        let config = null;
+        let clientConfig = null;
+        let heading = 0;
 
         async function init() {
-            const id = new URLSearchParams(window.location.search).get('id') || 'test';
-            const res = await fetch(`العملاء/${id}.json`);
-            config = await res.json();
-            getWeather();
-            startCam();
+            const id = new URLSearchParams(window.location.search).get('id') || 'demo';
+            const res = await fetch(`clients/${id}.json`);
+            clientConfig = await res.json();
+            
+            // Set Dynamic Language Content from JSON
+            document.getElementById('ui-brand-name').innerText = clientConfig.brand;
+            document.getElementById('ui-welcome-msg').innerText = clientConfig.welcome_text;
+            document.getElementById('core-audio').src = clientConfig.audio_file;
         }
 
-        async function getWeather() {
-            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Cairo&appid=${apiKey}&units=metric`);
-            const data = await res.json();
-            document.getElementById('weather').innerText = `${Math.round(data.main.temp)}°C | ${data.weather[0].main}`;
-        }
+        document.getElementById('start-trigger').onclick = async () => {
+            document.getElementById('core-audio').play();
+            startARMode();
+        };
 
-        async function startCam() {
+        async function startARMode() {
+            const branding = document.getElementById('phase-branding');
+            const arUI = document.getElementById('phase-ar');
+            branding.style.transform = "translateY(-100%)";
+            arUI.style.display = "block";
+            setTimeout(() => arUI.style.opacity = "1", 100);
+
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            document.getElementById('cam').srcObject = stream;
-            window.addEventListener('deviceorientation', track);
-        }
+            document.getElementById('camera-view').srcObject = stream;
 
-        function track(e) {
-            let head = e.webkitCompassHeading || (360 - e.alpha);
-            let target = config.points[0];
-            let diff = head - target.angle;
-            if (diff > 180) diff -= 360;
-            if (diff < -180) diff += 360;
-
-            const arrow = document.getElementById('arrow');
-            const card = document.getElementById('card');
-
-            if (Math.abs(diff) < 20) {
-                arrow.style.opacity = "0";
-                card.classList.add('active');
-                document.getElementById('dish-name').innerText = target.name;
-                document.getElementById('dish-info').innerText = target.info;
-            } else {
-                arrow.style.opacity = "1";
-                arrow.style.transform = `rotate(${diff > 0 ? -90 : 90}deg)`;
-                card.classList.remove('active');
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', syncSpatial, true);
             }
         }
+
+        function syncSpatial(e) {
+            heading = e.webkitCompassHeading || (360 - e.alpha);
+            let active = null;
+            let target = clientConfig.points[0];
+            let min = 360;
+
+            clientConfig.points.forEach(p => {
+                let d = Math.abs(heading - p.angle);
+                if (d > 180) d = 360 - d;
+                if (d < 15) active = p;
+                if (d < min) { min = d; target = p; }
+            });
+
+            const card = document.getElementById('info-card');
+            const guide = document.getElementById('ar-guide');
+
+            if (active) {
+                document.getElementById('item-title').innerText = active.name;
+                document.getElementById('item-desc').innerText = active.info;
+                card.classList.add('active');
+                guide.style.display = 'none';
+            } else {
+                card.classList.remove('active');
+                guide.style.display = 'block';
+                let diff = target.angle - heading;
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                guide.style.transform = `translateX(-50%) rotate(${diff > 0 ? 0 : 180}deg)`;
+            }
+        }
+
         init();
     </script>
 </body>
