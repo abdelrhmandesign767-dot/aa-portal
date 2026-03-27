@@ -1,1 +1,10 @@
-
+{
+  "brand": "GOLDEN SEAFOOD",
+  "points": [
+    {
+      "angle": 195,
+      "name": "Artisanal Seafood Linguine",
+      "info": "Fresh mussels, clams, and calamari tossed in a San Marzano tomato base with handmade linguine pasta. Perfect Mediterranean blend."
+    }
+  ]
+}
