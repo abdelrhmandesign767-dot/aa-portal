@@ -1,1 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Golden Portal V1</title>
+    <style>
+        /* INVISIBLE GOLDEN RATIO SYSTEM */
+        :root { --phi: 1.618; --gold: #d4af37; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+        
+        /* PHI-BASED LAYOUT */
+        #ui-layer { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+        
+        /* WEATHER BADGE (Top-Right) */
+        #weather { 
+            position: absolute; top: 20px; right: 20px; 
+            background: rgba(0,0,0,0.5); color: #fff; 
+            padding: calc(5px * var(--phi)); border-radius: 10px; font-size: 12px;
+        }
 
+        /* GUIDANCE ARROW (Top 30%) */
+        #arrow { 
+            margin-top: 30vh; font-size: 50px; color: var(--gold); 
+            transition: 0.3s; opacity: 0; 
+        }
+
+        /* INFO CARD (Bottom 30%) */
+        #card { 
+            position: absolute; bottom: 10%; 
+            width: calc(100% / var(--phi)); 
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(15px);
+            border: 1px solid var(--gold); border-radius: 20px;
+            padding: calc(15px * var(--phi)); color: #fff;
+            transform: translateY(200%); transition: 0.5s; pointer-events: auto;
+        }
+        #card.active { transform: translateY(0); }
+        
+        video { width: 100%; height: 100%; object-fit: cover; }
+    </style>
+</head>
+<body>
+    <div id="ui-layer">
+        <div id="weather">Loading weather...</div>
+        <div id="arrow">➔</div>
+        <div id="card">
+            <h2 id="dish-name" style="margin:0; color:var(--gold)"></h2>
+            <p id="dish-info"></p>
+        </div>
+    </div>
+    <video id="cam" autoplay playsinline></video>
+
+    <script>
+        const apiKey = '6ce2f9889336bf354a6a47b507723d3a';
+        let config = null;
+
+        async function init() {
+            const id = new URLSearchParams(window.location.search).get('id') || 'test';
+            const res = await fetch(`العملاء/${id}.json`);
+            config = await res.json();
+            getWeather();
+            startCam();
+        }
+
+        async function getWeather() {
+            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Cairo&appid=${apiKey}&units=metric`);
+            const data = await res.json();
+            document.getElementById('weather').innerText = `${Math.round(data.main.temp)}°C | ${data.weather[0].main}`;
+        }
+
+        async function startCam() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            document.getElementById('cam').srcObject = stream;
+            window.addEventListener('deviceorientation', track);
+        }
+
+        function track(e) {
+            let head = e.webkitCompassHeading || (360 - e.alpha);
+            let target = config.points[0];
+            let diff = head - target.angle;
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+
+            const arrow = document.getElementById('arrow');
+            const card = document.getElementById('card');
+
+            if (Math.abs(diff) < 20) {
+                arrow.style.opacity = "0";
+                card.classList.add('active');
+                document.getElementById('dish-name').innerText = target.name;
+                document.getElementById('dish-info').innerText = target.info;
+            } else {
+                arrow.style.opacity = "1";
+                arrow.style.transform = `rotate(${diff > 0 ? -90 : 90}deg)`;
+                card.classList.remove('active');
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
