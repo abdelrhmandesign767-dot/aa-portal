@@ -3,170 +3,1076 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Golden Portal | Spatial Experience</title>
+    <title>Vision AR Engine v9 | Hybrid NFT</title>
+
+    <!-- Google Fonts: Luxury Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- MindAR.js Image Tracking (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+
     <style>
-        :root { 
-            --phi: 1.618; 
-            --gold: #d4af37; 
-            --white: #ffffff;
+        /* =============================================
+           DESIGN TOKENS — GOLDEN RATIO (φ = 1.618)
+           Base unit: 8px — scale × φ at each step
+           ============================================= */
+        :root {
+            --gold:        #d4af37;
+            --gold-dim:    rgba(212,175,55,0.15);
+            --gold-glow:   rgba(212,175,55,0.45);
+            --white:       #f7f4ee;
+            --bg:          #050505;
+            --surface:     rgba(8,8,8,0.88);
+            --border:      rgba(212,175,55,0.22);
+            --text-muted:  rgba(247,244,238,0.55);
+
+            /* φ-scaled spacing */
+            --sp1: 5px;   /* 8 / φ */
+            --sp2: 8px;
+            --sp3: 13px;  /* 8 × φ */
+            --sp4: 21px;  /* 13 × φ */
+            --sp5: 34px;  /* 21 × φ */
+            --sp6: 55px;  /* 34 × φ */
+
+            /* φ-scaled type */
+            --t-xs:  10px;
+            --t-sm:  13px;
+            --t-md:  21px;
+            --t-lg:  34px;
+            --t-xl:  55px;
         }
 
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Inter', -apple-system, sans-serif; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* CAMERA FEED */
-        #video { 
-            position: fixed; inset: 0; width: 100%; height: 100%; 
-            object-fit: cover; z-index: 1; 
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: var(--bg);
+            font-family: 'DM Sans', sans-serif;
+            color: var(--white);
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* ATTRACTIVE START SCREEN */
-        #start-screen { 
-            position: fixed; inset: 0; z-index: 100; 
-            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            color: var(--white); text-align: center;
+        /* =============================================
+           LAUNCH PAD
+           ============================================= */
+        #launch-pad {
+            position: fixed; inset: 0; z-index: 200;
+            background: var(--bg);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: var(--sp4);
+            transition: opacity 0.6s ease, visibility 0.6s ease;
+        }
+        #launch-pad.hidden { opacity: 0; visibility: hidden; }
+
+        .lp-ornament {
+            width: 1px; height: 55px;
+            background: linear-gradient(to bottom, transparent, var(--gold), transparent);
+            margin-bottom: var(--sp3);
+        }
+        .lp-brand {
+            font-family: 'Playfair Display', serif;
+            font-size: var(--t-lg);
+            font-weight: 900;
+            letter-spacing: 8px;
+            color: var(--gold);
+            text-transform: uppercase;
+        }
+        .lp-sub {
+            font-size: var(--t-sm);
+            color: var(--text-muted);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+        .lp-divider {
+            width: 89px; /* φ^4 × 8 ≈ 89 */
+            height: 1px;
+            background: var(--border);
+            margin: var(--sp3) 0;
+        }
+        .lp-desc {
+            font-size: var(--t-sm);
+            color: var(--text-muted);
+            text-align: center;
+            max-width: 280px;
+            line-height: 1.618;
         }
 
-        /* Modern Background Pattern for Start Screen */
-        #start-screen::before {
-            content: ""; position: absolute; inset: 0;
-            background-image: radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+        #start-btn {
+            margin-top: var(--sp4);
+            padding: var(--sp3) var(--sp5);
+            background: transparent;
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            border-radius: 2px;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: var(--t-xs);
+            font-weight: 600;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            transition: background 0.3s, color 0.3s, box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        #start-btn::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: var(--gold);
+            transform: scaleX(0); transform-origin: left;
+            transition: transform 0.3s ease;
             z-index: -1;
         }
+        #start-btn:hover::before { transform: scaleX(1); }
+        #start-btn:hover { color: #000; box-shadow: 0 0 25px var(--gold-glow); }
 
-        .hero-title { 
-            font-size: 2.5rem; color: var(--gold); letter-spacing: 8px; font-weight: 800;
-            margin-bottom: 10px; text-transform: uppercase;
-            filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.3));
+        /* =============================================
+           CAMERA CANVAS
+           ============================================= */
+        #ar-viewport {
+            position: fixed; inset: 0; z-index: 1;
+            display: none;
+        }
+        #ar-viewport.active { display: block; }
+
+        /* Real camera feed fallback (non-MindAR mode) */
+        #video-bg {
+            position: fixed; inset: 0; z-index: 2;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+        #video-bg.active { display: block; }
+
+        /* =============================================
+           HUD LAYER — always on top of camera
+           ============================================= */
+        #hud {
+            position: fixed; inset: 0; z-index: 50;
+            pointer-events: none;
+            display: none;
+        }
+        #hud.active { display: block; }
+
+        /* --- Top Bar --- */
+        .hud-top {
+            position: absolute; top: 0; left: 0; right: 0;
+            padding: var(--sp4) var(--sp5);
+            display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+        }
+        .hud-brand {
+            font-family: 'Playfair Display', serif;
+            font-size: var(--t-md);
+            color: var(--gold);
+            letter-spacing: 3px;
+        }
+        .hud-status {
+            display: flex; align-items: center; gap: var(--sp2);
+            font-size: var(--t-xs);
+            color: var(--text-muted);
+            letter-spacing: 2px;
+        }
+        .status-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #4caf50;
+            box-shadow: 0 0 8px #4caf50;
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
-        .hero-subtitle { font-size: 1rem; opacity: 0.6; margin-bottom: 40px; font-weight: 300; }
-
-        #start-btn { 
-            padding: 20px 60px; font-size: 1.1rem; background: transparent; 
-            border: 2px solid var(--gold); color: var(--gold); border-radius: 100px;
-            cursor: pointer; font-weight: bold; transition: all 0.4s ease;
-            text-transform: uppercase; letter-spacing: 2px;
-            box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+        /* --- Tilt Indicator --- */
+        #tilt-indicator {
+            position: absolute; left: var(--sp5); top: 50%;
+            transform: translateY(-50%);
+            display: flex; flex-direction: column; align-items: center; gap: var(--sp2);
+        }
+        .tilt-track {
+            width: 3px; height: 89px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px; position: relative;
+            overflow: hidden;
+        }
+        .tilt-zone {
+            position: absolute; width: 100%;
+            background: var(--gold-dim);
+            border-top: 1px solid var(--gold);
+            border-bottom: 1px solid var(--gold);
+            /* 30°-70° zone = roughly 33%-77% of track */
+            top: 33%; height: 44%;
+        }
+        .tilt-thumb {
+            position: absolute; width: 9px; height: 9px;
+            background: var(--gold); border-radius: 50%;
+            left: 50%; transform: translateX(-50%);
+            top: 50%; transition: top 0.15s ease;
+            box-shadow: 0 0 8px var(--gold-glow);
+        }
+        .tilt-label {
+            font-size: 9px; color: var(--text-muted);
+            letter-spacing: 1px; writing-mode: vertical-rl;
+            text-transform: uppercase;
         }
 
-        #start-btn:hover { background: var(--gold); color: #000; box-shadow: 0 0 40px rgba(212, 175, 55, 0.5); }
+        /* --- Target Reticle --- */
+        #reticle {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 144px; height: 144px; /* 89 × φ ≈ 144 */
+        }
+        .reticle-corner {
+            position: absolute;
+            width: 21px; height: 21px;
+            border-color: var(--gold);
+            border-style: solid;
+            opacity: 0.85;
+            transition: all 0.4s ease;
+        }
+        .reticle-corner.tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
+        .reticle-corner.tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
+        .reticle-corner.bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+        .reticle-corner.br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
 
-        /* SPATIAL UI ELEMENTS */
-        #ui-layer { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
-
-        #weather-info { 
-            position: absolute; top: 30px; right: 30px; 
-            background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
-            border-left: 3px solid var(--gold); padding: 10px 20px; color: #fff; font-size: 14px;
+        .reticle-inner {
+            position: absolute; inset: 34px;
+            border: 1px solid rgba(212,175,55,0.2);
+            border-radius: 1px;
+        }
+        .reticle-dot {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px; height: 4px; border-radius: 50%;
+            background: var(--gold);
         }
 
-        #arrow { 
-            margin-top: 30vh; font-size: 70px; color: var(--gold); 
-            transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; 
-            filter: drop-shadow(0 0 15px var(--gold));
+        /* Reticle states */
+        #reticle.scanning .reticle-corner {
+            animation: reticle-pulse 1.6s ease-in-out infinite;
+        }
+        #reticle.locked .reticle-corner {
+            border-color: #4caf50;
+            animation: reticle-lock 0.4s ease forwards;
+        }
+        @keyframes reticle-pulse {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.06); }
+        }
+        @keyframes reticle-lock {
+            0% { transform: scale(1.2); opacity: 0.4; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
-        #info-card { 
-            position: absolute; bottom: 10%; width: 85%; max-width: 400px;
-            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(25px);
-            border: 1px solid rgba(255, 215, 0, 0.3); border-radius: 25px;
-            padding: 30px; color: #fff; transform: translateY(200%); transition: 0.7s ease;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        /* Scan progress ring */
+        .scan-ring {
+            position: absolute; inset: -21px;
+            border: 1px solid transparent;
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+            opacity: 0;
+            transition: opacity 0.3s;
         }
-        #info-card.active { transform: translateY(0); }
+        #reticle.scanning .scan-ring { opacity: 0.4; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        .card-label { color: var(--gold); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
+        /* Scan shimmer */
+        #scan-shimmer {
+            position: absolute; width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            top: 0; opacity: 0;
+            box-shadow: 0 0 12px var(--gold);
+            animation: shimmer-sweep 2.5s ease-in-out infinite;
+        }
+        #reticle.scanning + #scan-shimmer,
+        .shimmer-active { opacity: 1 !important; }
+        @keyframes shimmer-sweep {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        /* Confidence meter */
+        #confidence-bar {
+            position: absolute; bottom: var(--sp5); left: 50%;
+            transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center; gap: var(--sp2);
+            pointer-events: none;
+        }
+        .conf-label {
+            font-size: 9px; color: var(--text-muted);
+            letter-spacing: 3px; text-transform: uppercase;
+        }
+        .conf-track {
+            width: 144px; height: 3px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 2px; overflow: hidden;
+        }
+        .conf-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--gold), #fff);
+            border-radius: 2px;
+            transition: width 0.2s ease;
+            box-shadow: 0 0 8px var(--gold-glow);
+        }
+        .conf-value {
+            font-size: 10px; color: var(--gold);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 1px;
+        }
+
+        /* =============================================
+           INFO CARD (AR Overlay)
+           ============================================= */
+        #ar-card {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 60;
+            pointer-events: none;
+            transform: translateY(110%);
+            will-change: transform;
+        }
+        #ar-card.visible {
+            pointer-events: auto;
+            animation: card-enter 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        #ar-card.dismissing {
+            animation: card-exit 0.4s ease-in forwards;
+        }
+        @keyframes card-enter {
+            0%   { transform: translateY(110%); opacity: 0; }
+            60%  { transform: translateY(-8px); opacity: 1; }
+            80%  { transform: translateY(4px); }
+            100% { transform: translateY(0); }
+        }
+        @keyframes card-exit {
+            to { transform: translateY(110%); opacity: 0; }
+        }
+
+        .card-inner {
+            background: var(--surface);
+            backdrop-filter: blur(24px) saturate(1.4);
+            -webkit-backdrop-filter: blur(24px) saturate(1.4);
+            border-top: 1px solid var(--border);
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            border-radius: 13px 13px 0 0;
+            padding: var(--sp5) var(--sp5) var(--sp6);
+            position: relative;
+            overflow: hidden;
+        }
+        .card-inner::before {
+            content: '';
+            position: absolute; top: 0; left: var(--sp5); right: var(--sp5);
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            border-radius: 0 0 3px 3px;
+        }
+
+        /* Score badge */
+        .score-badge {
+            position: absolute; top: var(--sp4); right: var(--sp5);
+            display: flex; align-items: center; gap: var(--sp1);
+            background: rgba(212,175,55,0.1);
+            border: 1px solid var(--border);
+            border-radius: 21px;
+            padding: var(--sp1) var(--sp3);
+        }
+        .score-icon { width: 12px; height: 12px; }
+        .score-num {
+            font-size: var(--t-xs);
+            color: var(--gold);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Card header */
+        .card-category {
+            font-size: 9px;
+            color: var(--gold);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: var(--sp2);
+        }
+        .card-title {
+            font-family: 'Playfair Display', serif;
+            font-size: var(--t-md);
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: var(--sp3);
+            color: var(--white);
+        }
+        .card-desc {
+            font-size: var(--t-sm);
+            color: var(--text-muted);
+            line-height: 1.618;
+            margin-bottom: var(--sp4);
+        }
+
+        /* Ingredients */
+        .ingredients-wrap {
+            display: flex; flex-wrap: wrap; gap: var(--sp2);
+            margin-bottom: var(--sp4);
+        }
+        .ingredient-tag {
+            font-size: 10px;
+            padding: 4px var(--sp3);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+        }
+
+        /* Allergy warning */
+        .allergy-banner {
+            display: flex; align-items: flex-start; gap: var(--sp3);
+            background: rgba(255,180,0,0.06);
+            border: 1px solid rgba(255,180,0,0.2);
+            border-radius: 4px;
+            padding: var(--sp3);
+            margin-bottom: var(--sp4);
+        }
+        .allergy-icon { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+        .allergy-text { font-size: 11px; color: rgba(255,200,100,0.8); line-height: 1.5; }
+        .allergy-title { font-weight: 600; margin-bottom: 2px; }
+
+        /* CTA buttons */
+        .card-ctas {
+            display: flex; gap: var(--sp3);
+        }
+        .btn-primary {
+            flex: 1.618;
+            padding: var(--sp3) var(--sp4);
+            background: var(--gold);
+            border: none; border-radius: 3px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: var(--t-xs);
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #000;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: var(--sp2);
+            transition: opacity 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover { opacity: 0.9; box-shadow: 0 0 20px var(--gold-glow); }
+        .btn-secondary {
+            flex: 1;
+            padding: var(--sp3) var(--sp4);
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: var(--t-xs);
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+        .btn-icon { width: 14px; height: 14px; }
+
+        /* Dismiss handle */
+        .card-handle {
+            position: absolute; top: var(--sp3); left: 50%;
+            transform: translateX(-50%);
+            width: 34px; height: 3px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        /* =============================================
+           TOAST NOTIFICATION
+           ============================================= */
+        #toast {
+            position: fixed; top: var(--sp5); left: 50%;
+            transform: translateX(-50%) translateY(-120%);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: var(--sp3) var(--sp4);
+            font-size: var(--t-xs);
+            color: var(--gold);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            z-index: 300;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(12px);
+            white-space: nowrap;
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* =============================================
+           HINT — TILT WARNING
+           ============================================= */
+        #tilt-hint {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 55;
+            display: flex; flex-direction: column; align-items: center; gap: var(--sp3);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.5s;
+        }
+        #tilt-hint.show { opacity: 1; }
+        .tilt-hint-icon { width: 44px; height: 44px; }
+        .tilt-hint-text {
+            font-size: var(--t-xs);
+            color: var(--text-muted);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        /* =============================================
+           VIDEO MODAL
+           ============================================= */
+        #video-modal {
+            position: fixed; inset: 0; z-index: 400;
+            background: rgba(0,0,0,0.92);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: var(--sp4);
+            opacity: 0; visibility: hidden;
+            transition: opacity 0.4s, visibility 0.4s;
+        }
+        #video-modal.open { opacity: 1; visibility: visible; }
+        #modal-video {
+            width: 92%; max-width: 500px;
+            aspect-ratio: 16/9;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: #000;
+        }
+        #modal-close {
+            width: 44px; height: 44px;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        #modal-close:hover { border-color: var(--gold); color: var(--gold); }
     </style>
 </head>
 <body>
 
-    <div id="start-screen">
-        <div class="hero-title">Spatial</div>
-        <div class="hero-subtitle">Discovery Portal Experience</div>
-        <button id="start-btn">Start Exploration</button>
-        <p style="font-size: 10px; margin-top: 20px; opacity: 0.4;">Camera & Motion Sensors Required</p>
-    </div>
+<!-- =================== LAUNCH PAD =================== -->
+<div id="launch-pad">
+    <div class="lp-ornament"></div>
+    <div class="lp-brand" id="restaurant-name">ENGINE V9</div>
+    <div class="lp-sub">Hybrid Vision AR</div>
+    <div class="lp-divider"></div>
+    <p class="lp-desc">Point your camera at any dish photo to reveal its story, ingredients, and preview.</p>
+    <button id="start-btn">
+        <!-- Camera icon SVG inline -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:6px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Unlock AR Experience
+    </button>
+</div>
 
-    <div id="ui-layer">
-        <div id="weather-info">Tanta: Fetching...</div>
-        <div id="arrow">▲</div>
-        <div id="info-card">
-            <div class="card-label">Identified Item</div>
-            <h2 id="title" style="margin:5px 0 15px 0; font-size: 1.8rem;"></h2>
-            <p id="desc" style="font-weight: 300; line-height: 1.6; opacity: 0.8;"></p>
+<!-- =================== HUD =================== -->
+<div id="hud">
+    <div class="hud-top">
+        <div class="hud-brand" id="hud-brand">ENGINE V9</div>
+        <div class="hud-status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">SCANNING</span>
         </div>
     </div>
 
-    <video id="video" autoplay playsinline muted></video>
+    <!-- Tilt indicator (left side) -->
+    <div id="tilt-indicator">
+        <div class="tilt-label">TILT</div>
+        <div class="tilt-track">
+            <div class="tilt-zone"></div>
+            <div class="tilt-thumb" id="tilt-thumb"></div>
+        </div>
+        <div class="tilt-label">OK</div>
+    </div>
 
-    <script>
-        const video = document.getElementById('video');
-        const startBtn = document.getElementById('start-btn');
-        const startScreen = document.getElementById('start-screen');
-        const card = document.getElementById('info-card');
-        const arrow = document.getElementById('arrow');
-        let configData = null;
+    <!-- Target Reticle -->
+    <div id="reticle" class="scanning">
+        <div class="reticle-corner tl"></div>
+        <div class="reticle-corner tr"></div>
+        <div class="reticle-corner bl"></div>
+        <div class="reticle-corner br"></div>
+        <div class="reticle-inner"></div>
+        <div class="reticle-dot"></div>
+        <div class="scan-ring"></div>
+    </div>
+    <div id="scan-shimmer"></div>
 
-        // LOAD DATA
-        async function init() {
-            const id = new URLSearchParams(window.location.search).get('id') || 'test';
-            try {
-                const res = await fetch(`clients/${id}.json`);
-                configData = await res.json();
-                fetchWeather();
-            } catch(e) { console.error("Config missing"); }
+    <!-- Confidence bar -->
+    <div id="confidence-bar">
+        <div class="conf-label">Match Score</div>
+        <div class="conf-track"><div class="conf-fill" id="conf-fill"></div></div>
+        <div class="conf-value" id="conf-value">0%</div>
+    </div>
+</div>
+
+<!-- =================== TILT HINT =================== -->
+<div id="tilt-hint">
+    <svg class="tilt-hint-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="12" y="6" width="20" height="32" rx="3" stroke="#d4af37" stroke-width="1.5"/>
+        <path d="M18 36h8" stroke="#d4af37" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M22 20v-6M22 20l-3-3M22 20l3-3" stroke="#d4af37" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M8 34 L4 38 M36 34 L40 38" stroke="#d4af37" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>
+    </svg>
+    <div class="tilt-hint-text">Tilt phone to<br>dining angle</div>
+</div>
+
+<!-- =================== VIDEO (camera feed fallback) =================== -->
+<video id="video-bg" autoplay playsinline muted></video>
+
+<!-- =================== AR INFO CARD =================== -->
+<div id="ar-card">
+    <div class="card-inner">
+        <div class="card-handle" id="card-handle"></div>
+
+        <div class="score-badge">
+            <svg class="score-icon" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span class="score-num" id="score-display">--</span>
+        </div>
+
+        <div class="card-category" id="card-category">MAIN COURSE</div>
+        <div class="card-title" id="card-title">Dish Name</div>
+        <div class="card-desc" id="card-desc">Description loads here.</div>
+
+        <div class="ingredients-wrap" id="ingredients-wrap"></div>
+
+        <div class="allergy-banner" id="allergy-banner" style="display:none">
+            <svg class="allergy-icon" viewBox="0 0 24 24" fill="none" stroke="#ffb400" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div class="allergy-text">
+                <div class="allergy-title">Allergen Notice</div>
+                <div id="allergy-text">Contains allergens.</div>
+            </div>
+        </div>
+
+        <div class="card-ctas">
+            <button class="btn-primary" id="btn-video">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
+                </svg>
+                Video Recipe
+            </button>
+            <button class="btn-secondary" id="btn-dismiss">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- =================== VIDEO MODAL =================== -->
+<div id="video-modal">
+    <video id="modal-video" controls></video>
+    <button id="modal-close">✕</button>
+</div>
+
+<!-- =================== TOAST =================== -->
+<div id="toast">DISH DETECTED</div>
+
+
+<!-- =================== ENGINE SCRIPT =================== -->
+<script>
+/* =====================================================
+   DYNAMIC MENU DATA (JSON Architecture)
+   Each dish must have: target_image_url, video_preview,
+   ingredients_list, allergy_warnings + mindar target_index
+   ===================================================== */
+const RESTAURANT = {
+    brand: "ENGINE V9",
+    menu_items: [
+        {
+            id: "dish_0",
+            target_index: 0,           // MindAR compiled target index
+            category: "Signature Main",
+            name: "Wagyu Tataki",
+            description: "Lightly seared A5 wagyu beef, kissed with yuzu kosho butter, micro-shiso, and a 24-hour dashi reduction that lingers long after the last bite.",
+            ingredients_list: ["A5 Wagyu", "Yuzu Kosho", "Shiso Leaf", "Dashi", "Truffle Salt", "Microgreens"],
+            allergy_warnings: "Contains soy, sesame. May contain traces of shellfish.",
+            target_image_url: "assets/targets/wagyu.jpg",  // served from same directory
+            video_preview: "assets/videos/wagyu_recipe.mp4",
+            angle: 0 // fallback compass heading
+        },
+        {
+            id: "dish_1",
+            target_index: 1,
+            category: "Chef's Special",
+            name: "Lobster Bisque",
+            description: "Cold-water lobster slow-cooked in a cognac cream bisque with saffron foam, topped with caviar pearls and chive oil brushwork.",
+            ingredients_list: ["Lobster", "Cognac", "Saffron", "Heavy Cream", "Caviar", "Chive Oil"],
+            allergy_warnings: "Contains shellfish, dairy, alcohol. Not suitable for nut allergies.",
+            target_image_url: "assets/targets/bisque.jpg",
+            video_preview: "assets/videos/bisque_recipe.mp4",
+            angle: 90
+        },
+        {
+            id: "dish_2",
+            target_index: 2,
+            category: "Dessert",
+            name: "Black Sesame Soufflé",
+            description: "Airy Japanese black sesame soufflé, risen to perfection, served with house-churned tahini gelato and a drizzle of buckwheat honey.",
+            ingredients_list: ["Black Sesame", "Egg Whites", "Tahini", "Milk", "Buckwheat Honey", "Vanilla"],
+            allergy_warnings: "Contains eggs, dairy, gluten, sesame.",
+            target_image_url: "assets/targets/souffle.jpg",
+            video_preview: "assets/videos/souffle_recipe.mp4",
+            angle: 180
+        }
+    ]
+};
+
+/* =====================================================
+   STATE
+   ===================================================== */
+const STATE = {
+    started: false,
+    mindARActive: false,
+    currentItem: null,
+    cardVisible: false,
+    matchScore: 0,
+    tiltAngle: 45,
+    tiltOK: false,
+    lastFoundIndex: -1
+};
+
+const MIN_SCORE    = 0.70;  // 70% image match threshold
+const MIN_TILT     = 30;    // degrees from horizontal
+const MAX_TILT     = 70;
+
+/* =====================================================
+   DOM REFS
+   ===================================================== */
+const $  = id => document.getElementById(id);
+const launchPad   = $('launch-pad');
+const startBtn    = $('start-btn');
+const hud         = $('hud');
+const videoBg     = $('video-bg');
+const arCard      = $('ar-card');
+const reticle     = $('reticle');
+const confFill    = $('conf-fill');
+const confValue   = $('conf-value');
+const tiltThumb   = $('tilt-thumb');
+const tiltHint    = $('tilt-hint');
+const toast       = $('toast');
+const scanShimmer = $('scan-shimmer');
+
+/* =====================================================
+   LAUNCH
+   ===================================================== */
+document.getElementById('restaurant-name').textContent = RESTAURANT.brand;
+document.getElementById('hud-brand').textContent        = RESTAURANT.brand;
+
+startBtn.addEventListener('click', async () => {
+    try {
+        // Camera permission
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+        videoBg.srcObject = stream;
+        videoBg.classList.add('active');
+
+        // Motion permission (iOS 13+)
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            const perm = await DeviceOrientationEvent.requestPermission();
+            if (perm !== 'granted') showToast('MOTION SENSORS DENIED');
         }
 
-        async function fetchWeather() {
-            try {
-                const res = await fetch('https://api.openweathermap.org/data/2.5/weather?q=Tanta&appid=6ce2f9889336bf354a6a47b507723d3a&units=metric');
-                const w = await res.json();
-                document.getElementById('weather-info').innerText = `${Math.round(w.main.temp)}°C | ${w.weather[0].main}`;
-            } catch(e) {}
+        window.addEventListener('deviceorientation', onDeviceOrientation, true);
+
+        launchPad.classList.add('hidden');
+        hud.classList.add('active');
+
+        STATE.started = true;
+        showToast('AR ENGINE ACTIVE');
+
+        // Attempt MindAR init
+        initMindAR(stream);
+
+    } catch (err) {
+        showToast('CAMERA ACCESS REQUIRED');
+        console.error(err);
+    }
+});
+
+/* =====================================================
+   MINDAR INTEGRATION (Image Tracking)
+   ===================================================== */
+async function initMindAR(cameraStream) {
+    // MindAR needs a compiled .mind file from target images.
+    // In production: upload dish photos to MindAR Image Compiler
+    //   https://hiukim.github.io/mind-ar-js-doc/tools/compile
+    // then reference the .mind file below.
+    const MIND_FILE = 'assets/targets/menu_targets.mind';
+
+    try {
+        // Check if MindAR is available (CDN loaded)
+        if (typeof MINDAR === 'undefined' && typeof window.MINDAR === 'undefined') {
+            throw new Error('MindAR not loaded');
         }
 
-        // START HANDLER
-        startBtn.onclick = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-                    .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
-                
-                video.srcObject = stream;
-                
-                // Motion Permissions for iOS
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    await DeviceOrientationEvent.requestPermission();
+        const MindAR = window.MINDAR || MINDAR;
+
+        const mindarController = new MindAR.IMAGE.Controller({
+            inputWidth:  640,
+            inputHeight: 480,
+            onUpdate: ({ hasDimension, processingList }) => {
+                if (!processingList || processingList.length === 0) {
+                    setConfidence(0);
+                    reticle.classList.remove('locked');
+                    reticle.classList.add('scanning');
+                    scanShimmer.classList.add('shimmer-active');
+                    return;
                 }
-                
-                window.addEventListener('deviceorientation', handleSpatialTrack, true);
-                startScreen.style.opacity = '0';
-                setTimeout(() => startScreen.style.display = 'none', 500);
-            } catch (err) { alert("Please allow camera access."); }
-        };
 
-        // SPATIAL LOGIC
-        function handleSpatialTrack(e) {
-            if (!configData) return;
-            let currentHeading = e.webkitCompassHeading || (360 - e.alpha);
-            let target = configData.points[0];
-            let diff = currentHeading - target.angle;
-            
-            if (diff > 180) diff -= 360;
-            if (diff < -180) diff += 360;
+                let best = null;
+                let bestScore = 0;
+                processingList.forEach((result, idx) => {
+                    if (result && result.maxSimilarity > bestScore) {
+                        bestScore = result.maxSimilarity;
+                        best = { result, targetIndex: idx };
+                    }
+                });
 
-            if (Math.abs(diff) < 20) {
-                arrow.style.opacity = "0";
-                card.classList.add('active');
-                document.getElementById('title').innerText = target.name;
-                document.getElementById('desc').innerText = target.info;
-            } else {
-                arrow.style.opacity = "1";
-                card.classList.remove('active');
-                arrow.style.transform = `rotate(${diff > 0 ? -90 : 90}deg)`;
+                if (best) {
+                    const score = best.result.maxSimilarity;
+                    setConfidence(score);
+                    evaluateHybridTrigger(best.targetIndex, score);
+                }
             }
+        });
+
+        await mindarController.setup({ imageTargetSrc: MIND_FILE });
+
+        const video = document.createElement('video');
+        video.srcObject = cameraStream;
+        video.setAttribute('playsinline', '');
+        await mindarController.processVideo(video);
+
+        STATE.mindARActive = true;
+        console.log('MindAR active ✓');
+
+    } catch (e) {
+        // MindAR not available or .mind file missing — fall back to simulated mode
+        console.warn('MindAR fallback (demo mode):', e.message);
+        runSimulatedTracking();
+    }
+}
+
+/* =====================================================
+   HYBRID TRIGGER ENGINE
+   Primary: Image score > 70%
+   Secondary: Tilt 30°–70°
+   ===================================================== */
+function evaluateHybridTrigger(targetIndex, score) {
+    STATE.matchScore = score;
+
+    const dish = RESTAURANT.menu_items.find(d => d.target_index === targetIndex);
+    if (!dish) return;
+
+    const imageLock  = score >= MIN_SCORE;
+    const tiltLock   = STATE.tiltOK;
+
+    if (imageLock && tiltLock) {
+        // Both conditions met — show card
+        reticle.classList.remove('scanning');
+        reticle.classList.add('locked');
+        scanShimmer.classList.remove('shimmer-active');
+        $('status-text').textContent = 'LOCKED';
+
+        if (STATE.lastFoundIndex !== targetIndex || !STATE.cardVisible) {
+            STATE.lastFoundIndex = targetIndex;
+            showDishCard(dish, score);
         }
-        init();
-    </script>
+        tiltHint.classList.remove('show');
+
+    } else if (imageLock && !tiltLock) {
+        // Image found but tilt wrong
+        reticle.classList.remove('scanning');
+        reticle.classList.add('locked');
+        tiltHint.classList.add('show');
+        $('status-text').textContent = 'ADJUST ANGLE';
+
+    } else {
+        // Searching
+        reticle.classList.remove('locked');
+        reticle.classList.add('scanning');
+        scanShimmer.classList.add('shimmer-active');
+        tiltHint.classList.remove('show');
+        $('status-text').textContent = 'SCANNING';
+
+        if (STATE.cardVisible && score < MIN_SCORE * 0.6) {
+            dismissCard();
+        }
+    }
+}
+
+/* =====================================================
+   DEVICE ORIENTATION — TILT CHECK
+   ===================================================== */
+function onDeviceOrientation(e) {
+    // beta = front-to-back tilt (0° = flat, 90° = upright)
+    let beta = e.beta !== null ? Math.abs(e.beta) : 45;
+    beta = Math.min(beta, 90);
+
+    STATE.tiltAngle = beta;
+    STATE.tiltOK = (beta >= MIN_TILT && beta <= MAX_TILT);
+
+    // Update tilt thumb (0° → top, 90° → bottom of 89px track)
+    const pct = beta / 90;
+    const trackH = 89;
+    tiltThumb.style.top = `${pct * trackH - 4}px`;
+
+    // Status dot color
+    const dot = $('status-dot');
+    dot.style.background = STATE.tiltOK ? '#4caf50' : '#ffb400';
+    dot.style.boxShadow  = `0 0 8px ${STATE.tiltOK ? '#4caf50' : '#ffb400'}`;
+}
+
+/* =====================================================
+   CONFIDENCE METER
+   ===================================================== */
+function setConfidence(score) {
+    const pct = Math.round(score * 100);
+    confFill.style.width = pct + '%';
+    confValue.textContent = pct + '%';
+}
+
+/* =====================================================
+   CARD RENDER & SHOW
+   ===================================================== */
+function showDishCard(dish, score) {
+    $('card-category').textContent = dish.category;
+    $('card-title').textContent     = dish.name;
+    $('card-desc').textContent      = dish.description;
+    $('score-display').textContent  = Math.round(score * 100) + '%';
+
+    // Ingredients
+    const wrap = $('ingredients-wrap');
+    wrap.innerHTML = '';
+    dish.ingredients_list.forEach(ing => {
+        const tag = document.createElement('div');
+        tag.className = 'ingredient-tag';
+        tag.textContent = ing;
+        wrap.appendChild(tag);
+    });
+
+    // Allergy
+    const allergyBanner = $('allergy-banner');
+    if (dish.allergy_warnings) {
+        $('allergy-text').textContent = dish.allergy_warnings;
+        allergyBanner.style.display = 'flex';
+    } else {
+        allergyBanner.style.display = 'none';
+    }
+
+    // Video CTA
+    $('btn-video').onclick = () => openVideoModal(dish.video_preview, dish.name);
+
+    // Animate in
+    arCard.classList.remove('dismissing');
+    arCard.classList.add('visible');
+    STATE.cardVisible = true;
+    STATE.currentItem = dish;
+
+    showToast('DISH DETECTED');
+}
+
+function dismissCard() {
+    arCard.classList.add('dismissing');
+    arCard.classList.remove('visible');
+    setTimeout(() => arCard.classList.remove('dismissing'), 450);
+    STATE.cardVisible = false;
+    STATE.currentItem = null;
+    STATE.lastFoundIndex = -1;
+    $('status-text').textContent = 'SCANNING';
+    reticle.classList.remove('locked');
+    reticle.classList.add('scanning');
+    scanShimmer.classList.add('shimmer-active');
+}
+
+$('btn-dismiss').addEventListener('click', dismissCard);
+$('card-handle').addEventListener('click', dismissCard);
+
+/* =====================================================
+   VIDEO MODAL
+   ===================================================== */
+function openVideoModal(src, title) {
+    const modal = $('video-modal');
+    const vid   = $('modal-video');
+    vid.src = src;
+    vid.play().catch(() => {});
+    modal.classList.add('open');
+}
+$('modal-close').addEventListener('click', () => {
+    $('video-modal').classList.remove('open');
+    $('modal-video').pause();
+    $('modal-video').src = '';
+});
+
+/* =====================================================
+   TOAST
+   ===================================================== */
+function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+/* =====================================================
+   SIMULATED DEMO TRACKING
+   (Used when MindAR .mind file is absent — shows the
+    full UI flow for demonstration / design preview)
+   ===================================================== */
+function runSimulatedTracking() {
+    let simPhase = 0;
+    let confidence = 0;
+    const dishes = RESTAURANT.menu_items;
+
+    // Simulate a scanning → match cycle every 6 seconds
+    setInterval(() => {
+        simPhase = (simPhase + 1) % (dishes.length * 2);
+        const dishIdx = Math.floor(simPhase / 2);
+        const isMatch = simPhase % 2 === 1;
+
+        if (isMatch) {
+            confidence = 0.72 + Math.random() * 0.22;
+            setConfidence(confidence);
+            evaluateHybridTrigger(dishes[dishIdx].target_index, confidence);
+        } else {
+            confidence = Math.random() * 0.5;
+            setConfidence(confidence);
+            evaluateHybridTrigger(dishes[dishIdx].target_index, confidence);
+        }
+    }, 3000);
+
+    // Simulate tilt OK after 1s
+    setTimeout(() => {
+        STATE.tiltAngle = 50;
+        STATE.tiltOK = true;
+        tiltThumb.style.top = '44px';
+    }, 1200);
+
+    showToast('DEMO MODE ACTIVE');
+}
+</script>
 </body>
 </html>
