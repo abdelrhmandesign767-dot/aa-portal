@@ -55,22 +55,33 @@
         }
 
         /* =============================================
-           LAUNCH PAD
+           LAUNCH PAD — IMMERSIVE HERO
            ============================================= */
-        #launch-pad {
+        .glass-hero {
             position: fixed; inset: 0; z-index: 200;
-            background: var(--bg);
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            gap: var(--sp4);
-            transition: opacity 0.6s ease, visibility 0.6s ease;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            transition: opacity 0.8s ease, visibility 0.8s ease;
         }
-        #launch-pad.hidden { opacity: 0; visibility: hidden; }
+        .glass-hero.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
-        .lp-ornament {
-            width: 1px; height: 55px;
-            background: linear-gradient(to bottom, transparent, var(--gold), transparent);
-            margin-bottom: var(--sp3);
+        .hero-bg-image {
+            position: absolute; inset: -5%;
+            background-size: cover; background-position: center;
+            filter: blur(8px); z-index: 1;
+            /* Fallback gradient when no image is loaded */
+            background-color: #0a0a0a;
+            background-image: linear-gradient(135deg, #0d0d0d 0%, #1a1208 50%, #0d0d0d 100%);
+        }
+        .glass-overlay {
+            position: absolute; inset: 0;
+            background: rgba(5,5,5,0.45); z-index: 2;
+        }
+        .hero-center-content {
+            position: relative; z-index: 10;
+            display: flex; flex-direction: column;
+            align-items: center; gap: var(--sp5);
+            text-align: center; padding: var(--sp5);
         }
         .lp-brand {
             font-family: 'Playfair Display', serif;
@@ -80,53 +91,61 @@
             color: var(--gold);
             text-transform: uppercase;
         }
-        .lp-sub {
-            font-size: var(--t-sm);
+        .sensory-text { display: flex; flex-direction: column; gap: var(--sp2); }
+        .hero-title {
+            font-family: 'Playfair Display', serif;
+            font-size: var(--t-md);
+            color: var(--white);
+            font-weight: 400;
+            letter-spacing: 2px;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+        .hero-subtitle {
+            font-size: var(--t-xs);
             color: var(--text-muted);
-            letter-spacing: 4px;
+            letter-spacing: 3px;
             text-transform: uppercase;
         }
-        .lp-divider {
-            width: 89px; /* φ^4 × 8 ≈ 89 */
-            height: 1px;
-            background: var(--border);
-            margin: var(--sp3) 0;
+        /* Corner icon buttons */
+        .corner-icon {
+            position: absolute; z-index: 10;
+            width: 44px; height: 44px;
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            color: var(--white);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s ease;
         }
-        .lp-desc {
-            font-size: var(--t-sm);
-            color: var(--text-muted);
-            text-align: center;
-            max-width: 280px;
-            line-height: 1.618;
-        }
-
-        #start-btn {
-            margin-top: var(--sp4);
-            padding: var(--sp3) var(--sp5);
-            background: transparent;
+        .corner-icon svg { width: 18px; height: 18px; }
+        .corner-icon:hover { background: rgba(212,175,55,0.2); border-color: var(--gold); }
+        .top-left    { top: var(--sp4); left: var(--sp4); }
+        .top-right   { top: var(--sp4); right: var(--sp4); }
+        .bottom-left { bottom: var(--sp4); left: var(--sp4); }
+        /* Breathing camera button */
+        .breathing-cam-btn {
+            width: 72px; height: 72px;
+            border-radius: 50%;
+            background: rgba(212,175,55,0.15);
             border: 1px solid var(--gold);
             color: var(--gold);
-            border-radius: 2px;
+            backdrop-filter: blur(10px);
             cursor: pointer;
-            font-family: 'DM Sans', sans-serif;
-            font-size: var(--t-xs);
-            font-weight: 600;
-            letter-spacing: 4px;
-            text-transform: uppercase;
-            transition: background 0.3s, color 0.3s, box-shadow 0.3s;
-            position: relative;
-            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            animation: breathe 3s ease-in-out infinite;
+            transition: transform 0.2s;
         }
-        #start-btn::before {
-            content: '';
-            position: absolute; inset: 0;
-            background: var(--gold);
-            transform: scaleX(0); transform-origin: left;
-            transition: transform 0.3s ease;
-            z-index: -1;
+        .breathing-cam-btn svg { width: 28px; height: 28px; }
+        .breathing-cam-btn:active { transform: scale(0.9); }
+        @keyframes breathe {
+            0%, 100% { box-shadow: 0 0 15px rgba(212,175,55,0.2); transform: scale(1); }
+            50%       { box-shadow: 0 0 35px rgba(212,175,55,0.6); transform: scale(1.05); }
         }
-        #start-btn:hover::before { transform: scaleX(1); }
-        #start-btn:hover { color: #000; box-shadow: 0 0 25px var(--gold-glow); }
+
+        /* Hide tilt indicator visually — logic stays active */
+        #tilt-indicator { display: none !important; }
 
         /* =============================================
            CAMERA CANVAS
@@ -219,66 +238,38 @@
             text-transform: uppercase;
         }
 
-        /* --- Target Reticle --- */
+        /* --- Target Reticle — Minimalistic --- */
         #reticle {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 144px; height: 144px; /* 89 × φ ≈ 144 */
+            width: 200px; height: 200px;
+            border: none;
         }
-        .reticle-corner {
+        .smart-corner {
             position: absolute;
-            width: 21px; height: 21px;
-            border-color: var(--gold);
+            width: 30px; height: 30px;
+            border-color: rgba(255,255,255,0.3);
             border-style: solid;
-            opacity: 0.85;
-            transition: all 0.4s ease;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .reticle-corner.tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
-        .reticle-corner.tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
-        .reticle-corner.bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
-        .reticle-corner.br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
-
-        .reticle-inner {
-            position: absolute; inset: 34px;
-            border: 1px solid rgba(212,175,55,0.2);
-            border-radius: 1px;
+        .smart-corner.tl { top: 0; left: 0; border-width: 1px 0 0 1px; border-top-left-radius: 12px; }
+        .smart-corner.tr { top: 0; right: 0; border-width: 1px 1px 0 0; border-top-right-radius: 12px; }
+        .smart-corner.bl { bottom: 0; left: 0; border-width: 0 0 1px 1px; border-bottom-left-radius: 12px; }
+        .smart-corner.br { bottom: 0; right: 0; border-width: 0 1px 1px 0; border-bottom-right-radius: 12px; }
+        /* Scanning — gentle pulse */
+        #reticle.scanning .smart-corner {
+            animation: corner-pulse 1.8s ease-in-out infinite;
         }
-        .reticle-dot {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 4px; height: 4px; border-radius: 50%;
-            background: var(--gold);
+        @keyframes corner-pulse {
+            0%, 100% { border-color: rgba(255,255,255,0.2); transform: scale(1); }
+            50%       { border-color: rgba(212,175,55,0.7); transform: scale(1.04); }
         }
-
-        /* Reticle states */
-        #reticle.scanning .reticle-corner {
-            animation: reticle-pulse 1.6s ease-in-out infinite;
-        }
-        #reticle.locked .reticle-corner {
-            border-color: #4caf50;
-            animation: reticle-lock 0.4s ease forwards;
-        }
-        @keyframes reticle-pulse {
-            0%, 100% { opacity: 0.4; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.06); }
-        }
-        @keyframes reticle-lock {
-            0% { transform: scale(1.2); opacity: 0.4; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        /* Scan progress ring */
-        .scan-ring {
-            position: absolute; inset: -21px;
-            border: 1px solid transparent;
-            border-top-color: var(--gold);
-            border-radius: 50%;
-            animation: spin 2s linear infinite;
+        /* Locked — corners shrink and fade (card takes over) */
+        #reticle.locked .smart-corner {
+            border-color: var(--gold);
+            transform: scale(0.8);
             opacity: 0;
-            transition: opacity 0.3s;
         }
-        #reticle.scanning .scan-ring { opacity: 0.4; }
-        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* Scan shimmer */
         #scan-shimmer {
@@ -288,110 +279,103 @@
             box-shadow: 0 0 12px var(--gold);
             animation: shimmer-sweep 2.5s ease-in-out infinite;
         }
-        #reticle.scanning + #scan-shimmer,
         .shimmer-active { opacity: 1 !important; }
         @keyframes shimmer-sweep {
-            0% { top: 0%; opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
+            0%   { top: 0%; opacity: 0; }
+            10%  { opacity: 1; }
+            90%  { opacity: 1; }
             100% { top: 100%; opacity: 0; }
         }
 
-        /* Confidence meter */
-        #confidence-bar {
-            position: absolute; bottom: var(--sp5); left: 50%;
-            transform: translateX(-50%);
-            display: flex; flex-direction: column; align-items: center; gap: var(--sp2);
+        /* Circular Score Badge */
+        #circular-score-badge {
+            position: absolute; top: var(--sp4); right: var(--sp4);
+            width: 50px; height: 50px;
+            background: rgba(5,5,5,0.4);
+            backdrop-filter: blur(8px);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            border: 1px solid rgba(255,255,255,0.1);
             pointer-events: none;
         }
-        .conf-label {
-            font-size: 9px; color: var(--text-muted);
-            letter-spacing: 3px; text-transform: uppercase;
+        #circular-score-badge.visible { opacity: 1; }
+        .score-ring {
+            width: 100%; height: 100%;
+            position: absolute;
+            transform: rotate(-90deg);
         }
-        .conf-track {
-            width: 144px; height: 3px;
-            background: rgba(255,255,255,0.08);
-            border-radius: 2px; overflow: hidden;
+        .ring-bg  { fill: none; stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+        .ring-fill {
+            fill: none; stroke: var(--gold); stroke-width: 2;
+            transition: stroke-dasharray 0.3s ease;
+            stroke-linecap: round;
         }
-        .conf-fill {
-            height: 100%; width: 0%;
-            background: linear-gradient(90deg, var(--gold), #fff);
-            border-radius: 2px;
-            transition: width 0.2s ease;
-            box-shadow: 0 0 8px var(--gold-glow);
+        .score-text {
+            font-size: 11px; color: var(--gold);
+            font-weight: 600; position: relative; z-index: 1;
         }
-        .conf-value {
-            font-size: 10px; color: var(--gold);
-            font-variant-numeric: tabular-nums;
-            letter-spacing: 1px;
-        }
+
+        /* Hide old linear confidence bar */
+        #confidence-bar { display: none !important; }
 
         /* =============================================
-           INFO CARD (AR Overlay)
+           AR INFO CARD — iPhone Glassmorphism + Cascade
            ============================================= */
-        #ar-card {
+        .glass-card {
             position: fixed;
-            bottom: 0; left: 0; right: 0;
+            bottom: var(--sp3); left: var(--sp3); right: var(--sp3);
             z-index: 60;
             pointer-events: none;
-            transform: translateY(110%);
-            will-change: transform;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        #ar-card.visible {
+        .glass-card.visible {
             pointer-events: auto;
-            animation: card-enter 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 1;
+            transform: translateX(0);
         }
-        #ar-card.dismissing {
-            animation: card-exit 0.4s ease-in forwards;
+        .glass-card.dismissing {
+            transform: translateX(-100%);
+            opacity: 0;
         }
-        @keyframes card-enter {
-            0%   { transform: translateY(110%); opacity: 0; }
-            60%  { transform: translateY(-8px); opacity: 1; }
-            80%  { transform: translateY(4px); }
-            100% { transform: translateY(0); }
-        }
-        @keyframes card-exit {
-            to { transform: translateY(110%); opacity: 0; }
-        }
-
         .card-inner {
-            background: var(--surface);
-            backdrop-filter: blur(24px) saturate(1.4);
-            -webkit-backdrop-filter: blur(24px) saturate(1.4);
-            border-top: 1px solid var(--border);
-            border-left: 1px solid var(--border);
-            border-right: 1px solid var(--border);
-            border-radius: 13px 13px 0 0;
-            padding: var(--sp5) var(--sp5) var(--sp6);
+            background: rgba(15,15,15,0.65);
+            backdrop-filter: blur(25px) saturate(1.8);
+            -webkit-backdrop-filter: blur(25px) saturate(1.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: var(--sp5);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
             position: relative;
             overflow: hidden;
         }
-        .card-inner::before {
-            content: '';
-            position: absolute; top: 0; left: var(--sp5); right: var(--sp5);
-            height: 3px;
-            background: linear-gradient(90deg, transparent, var(--gold), transparent);
-            border-radius: 0 0 3px 3px;
+
+        /* Cascade animation staggering */
+        .cascade-item {
+            opacity: 0;
+            transform: translateX(20px);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .glass-card.visible .cascade-item          { opacity: 1; transform: translateX(0); }
+        .glass-card.visible .step-1 { transition-delay: 0.10s; }
+        .glass-card.visible .step-2 { transition-delay: 0.20s; }
+        .glass-card.visible .step-3 { transition-delay: 0.30s; }
+        .glass-card.visible .step-4 { transition-delay: 0.40s; }
+        .glass-card.visible .step-5 { transition-delay: 0.50s; }
+
+        /* Card handle */
+        .card-handle {
+            width: 34px; height: 3px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+            margin: 0 auto var(--sp4);
+            cursor: pointer;
         }
 
-        /* Score badge */
-        .score-badge {
-            position: absolute; top: var(--sp4); right: var(--sp5);
-            display: flex; align-items: center; gap: var(--sp1);
-            background: rgba(212,175,55,0.1);
-            border: 1px solid var(--border);
-            border-radius: 21px;
-            padding: var(--sp1) var(--sp3);
-        }
-        .score-icon { width: 12px; height: 12px; }
-        .score-num {
-            font-size: var(--t-xs);
-            color: var(--gold);
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Card header */
+        /* Card text fields */
         .card-category {
             font-size: 9px;
             color: var(--gold);
@@ -414,18 +398,31 @@
             margin-bottom: var(--sp4);
         }
 
-        /* Ingredients */
-        .ingredients-wrap {
-            display: flex; flex-wrap: wrap; gap: var(--sp2);
+        /* Elegant horizontal ingredients strip */
+        .elegant-ingredients {
+            display: flex; gap: var(--sp3);
+            overflow-x: auto; padding-bottom: var(--sp2);
+            scrollbar-width: none;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
             margin-bottom: var(--sp4);
         }
-        .ingredient-tag {
-            font-size: 10px;
-            padding: 4px var(--sp3);
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            color: var(--text-muted);
-            letter-spacing: 1px;
+        .elegant-ingredients::-webkit-scrollbar { display: none; }
+        .ing-icon-item {
+            display: flex; flex-direction: column;
+            align-items: center; gap: 4px;
+            min-width: 48px; flex-shrink: 0;
+        }
+        .ing-circle {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(212,175,55,0.3);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+        }
+        .ing-label {
+            font-size: 9px; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 1px;
+            text-align: center; line-height: 1.3;
         }
 
         /* Allergy warning */
@@ -438,56 +435,44 @@
             margin-bottom: var(--sp4);
         }
         .allergy-icon { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
-        .allergy-text { font-size: 11px; color: rgba(255,200,100,0.8); line-height: 1.5; }
+        .allergy-text { font-size: 11px; color: rgba(255,200,100,0.85); line-height: 1.5; }
         .allergy-title { font-weight: 600; margin-bottom: 2px; }
 
-        /* CTA buttons */
-        .card-ctas {
-            display: flex; gap: var(--sp3);
+        /* Dynamic action buttons */
+        .dynamic-actions {
+            display: flex; justify-content: space-between; align-items: center;
         }
-        .btn-primary {
-            flex: 1.618;
-            padding: var(--sp3) var(--sp4);
-            background: var(--gold);
-            border: none; border-radius: 3px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: var(--t-xs);
-            font-weight: 600;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: #000;
+        .dynamic-video-btn {
+            width: 48px; height: 48px;
+            border-radius: 24px;
+            background: rgba(212,175,55,0.15);
+            border: 1px solid var(--gold);
+            display: flex; align-items: center; justify-content: center;
             cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: var(--sp2);
-            transition: opacity 0.2s, box-shadow 0.2s;
+            position: relative; overflow: hidden;
+            transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s;
         }
-        .btn-primary:hover { opacity: 0.9; box-shadow: 0 0 20px var(--gold-glow); }
-        .btn-secondary {
-            flex: 1;
-            padding: var(--sp3) var(--sp4);
-            background: transparent;
-            border: 1px solid var(--border);
-            border-radius: 3px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: var(--t-xs);
-            font-weight: 500;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: border-color 0.2s, color 0.2s;
+        .dynamic-video-btn:hover { width: 140px; background: var(--gold); }
+        .dynamic-video-btn:hover svg { fill: #000; }
+        .dynamic-video-btn::after {
+            content: 'PLAY VIDEO';
+            position: absolute; opacity: 0;
+            color: #000; font-size: 11px; font-weight: 700; letter-spacing: 2px;
+            white-space: nowrap;
+            left: 50%; transform: translateX(-50%);
+            transition: opacity 0.25s 0.15s;
+            pointer-events: none;
         }
-        .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
-        .btn-icon { width: 14px; height: 14px; }
-
-        /* Dismiss handle */
-        .card-handle {
-            position: absolute; top: var(--sp3); left: 50%;
-            transform: translateX(-50%);
-            width: 34px; height: 3px;
-            background: rgba(255,255,255,0.15);
-            border-radius: 2px;
-            cursor: pointer;
+        .dynamic-video-btn:hover::after { opacity: 1; }
+        .dynamic-video-btn svg { transition: fill 0.3s; }
+        .minimal-close-btn {
+            background: none; border: none;
+            color: rgba(255,255,255,0.4);
+            font-size: 10px; letter-spacing: 3px;
+            cursor: pointer; font-family: 'DM Sans', sans-serif;
+            transition: color 0.3s;
         }
+        .minimal-close-btn:hover { color: var(--white); }
 
         /* =============================================
            TOAST NOTIFICATION
@@ -567,18 +552,40 @@
 </head>
 <body>
 
-<!-- =================== LAUNCH PAD =================== -->
-<div id="launch-pad">
-    <div class="lp-ornament"></div>
-    <div class="lp-brand" id="restaurant-name">ENGINE V9</div>
-    <div class="lp-sub">Hybrid Vision AR</div>
-    <div class="lp-divider"></div>
-    <p class="lp-desc">Point your camera at any dish photo to reveal its story, ingredients, and preview.</p>
-    <button id="start-btn">
-        <!-- Camera icon SVG inline -->
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:6px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        Unlock AR Experience
+<!-- =================== LAUNCH PAD — IMMERSIVE HERO =================== -->
+<div id="launch-pad" class="glass-hero">
+    <div class="hero-bg-image" style="background-image: url('content/hero-bg.jpg');"></div>
+    <div class="glass-overlay"></div>
+
+    <button class="corner-icon top-left" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
     </button>
+    <button class="corner-icon top-right" aria-label="Info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+    </button>
+    <button class="corner-icon bottom-left" aria-label="Menu items">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        </svg>
+    </button>
+
+    <div class="hero-center-content">
+        <div class="lp-brand" id="restaurant-name">ENGINE V9</div>
+        <div class="sensory-text">
+            <h1 class="hero-title">Discover Your Dish's Story</h1>
+            <p class="hero-subtitle">The food is speaking. Point your camera to listen.</p>
+        </div>
+        <button id="start-btn" class="breathing-cam-btn" aria-label="Unlock AR Experience">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+            </svg>
+        </button>
+    </div>
 </div>
 
 <!-- =================== HUD =================== -->
@@ -601,23 +608,29 @@
         <div class="tilt-label">OK</div>
     </div>
 
-    <!-- Target Reticle -->
+    <!-- Target Reticle — Minimalistic -->
     <div id="reticle" class="scanning">
-        <div class="reticle-corner tl"></div>
-        <div class="reticle-corner tr"></div>
-        <div class="reticle-corner bl"></div>
-        <div class="reticle-corner br"></div>
-        <div class="reticle-inner"></div>
-        <div class="reticle-dot"></div>
-        <div class="scan-ring"></div>
+        <div class="smart-corner tl"></div>
+        <div class="smart-corner tr"></div>
+        <div class="smart-corner bl"></div>
+        <div class="smart-corner br"></div>
     </div>
     <div id="scan-shimmer"></div>
 
-    <!-- Confidence bar -->
-    <div id="confidence-bar">
-        <div class="conf-label">Match Score</div>
+    <!-- Circular Score Badge (replaces linear confidence bar) -->
+    <div id="circular-score-badge">
+        <svg class="score-ring" viewBox="0 0 36 36">
+            <path class="ring-bg"   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <path class="ring-fill" id="circular-conf-fill" stroke-dasharray="0, 100"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+        </svg>
+        <div class="score-text" id="circular-conf-value">0%</div>
+    </div>
+
+    <!-- Hidden linear bar kept in DOM for JS compat — overridden by display:none CSS -->
+    <div id="confidence-bar" aria-hidden="true">
         <div class="conf-track"><div class="conf-fill" id="conf-fill"></div></div>
-        <div class="conf-value" id="conf-value">0%</div>
+        <div id="conf-value"></div>
     </div>
 </div>
 
@@ -635,23 +648,16 @@
 <!-- =================== VIDEO (camera feed fallback) =================== -->
 <video id="video-bg" autoplay playsinline muted></video>
 
-<!-- =================== AR INFO CARD =================== -->
-<div id="ar-card">
-    <div class="card-inner">
+<!-- =================== AR INFO CARD — GLASSMORPHISM =================== -->
+<div id="ar-card" class="glass-card">
+    <div class="card-inner cascade-container">
         <div class="card-handle" id="card-handle"></div>
 
-        <div class="score-badge">
-            <svg class="score-icon" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-            <span class="score-num" id="score-display">--</span>
-        </div>
+        <div class="cascade-item step-1 card-category" id="card-category">CHEF'S SPECIAL</div>
+        <h2 class="cascade-item step-2 card-title" id="card-title">Dish Name</h2>
+        <p class="cascade-item step-3 card-desc" id="card-desc">Description loads here.</p>
 
-        <div class="card-category" id="card-category">MAIN COURSE</div>
-        <div class="card-title" id="card-title">Dish Name</div>
-        <div class="card-desc" id="card-desc">Description loads here.</div>
-
-        <div class="ingredients-wrap" id="ingredients-wrap"></div>
+        <div class="cascade-item step-4 elegant-ingredients" id="ingredients-wrap"></div>
 
         <div class="allergy-banner" id="allergy-banner" style="display:none">
             <svg class="allergy-icon" viewBox="0 0 24 24" fill="none" stroke="#ffb400" stroke-width="2">
@@ -664,19 +670,13 @@
             </div>
         </div>
 
-        <div class="card-ctas">
-            <button class="btn-primary" id="btn-video">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
+        <div class="cascade-item step-5 dynamic-actions">
+            <button class="dynamic-video-btn" id="btn-video">
+                <svg viewBox="0 0 24 24" fill="var(--gold)" width="18" height="18">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
                 </svg>
-                Video Recipe
             </button>
-            <button class="btn-secondary" id="btn-dismiss">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-                Close
-            </button>
+            <button class="minimal-close-btn" id="btn-dismiss">✕ CLOSE</button>
         </div>
     </div>
 </div>
@@ -762,18 +762,22 @@ const MAX_TILT     = 70;
    DOM REFS
    ===================================================== */
 const $  = id => document.getElementById(id);
-const launchPad   = $('launch-pad');
-const startBtn    = $('start-btn');
-const hud         = $('hud');
-const videoBg     = $('video-bg');
-const arCard      = $('ar-card');
-const reticle     = $('reticle');
-const confFill    = $('conf-fill');
-const confValue   = $('conf-value');
-const tiltThumb   = $('tilt-thumb');
-const tiltHint    = $('tilt-hint');
-const toast       = $('toast');
-const scanShimmer = $('scan-shimmer');
+const launchPad    = $('launch-pad');
+const startBtn     = $('start-btn');
+const hud          = $('hud');
+const videoBg      = $('video-bg');
+const arCard       = $('ar-card');
+const reticle      = $('reticle');
+const tiltThumb    = $('tilt-thumb');
+const tiltHint     = $('tilt-hint');
+const toast        = $('toast');
+const scanShimmer  = $('scan-shimmer');
+// Circular badge refs (replace old linear bar)
+const circularBadge   = $('circular-score-badge');
+const circularFill    = $('circular-conf-fill');
+const circularValue   = $('circular-conf-value');
+// Keep legacy refs alive so decayConfidence can read last value
+let _lastConfidence = 0;
 
 /* =====================================================
    LAUNCH
@@ -890,12 +894,14 @@ function lockAndShow(index, score) {
     $('card-title').innerText    = dish.name;
     $('card-desc').innerText     = dish.description;
     $('card-category').innerText = dish.category;
-    $('score-display').innerText = score + '%';
 
-    // Ingredients — template-string render (fast, testable)
+    // Ingredients — elegant icon strip format
     $('ingredients-wrap').innerHTML =
         dish.ingredients_list.map(ing =>
-            `<span class="ingredient-tag">${ing}</span>`
+            `<div class="ing-icon-item">
+                <div class="ing-circle">✨</div>
+                <span class="ing-label">${ing}</span>
+            </div>`
         ).join('');
 
     // Allergy banner
@@ -950,21 +956,31 @@ function onDeviceOrientation(e) {
 }
 
 /* =====================================================
-   CONFIDENCE METER
-   Accepts 0–100 integer (already scaled before call)
+   CONFIDENCE METER — Circular SVG Badge
+   val: 0–100 integer
    ===================================================== */
 function setConfidence(val) {
-    confFill.style.width = val + '%';
-    confValue.innerText  = val + '%';
+    val = Math.max(0, Math.min(100, val));
+    _lastConfidence = val;
+
+    // Drive the SVG ring (stroke-dasharray: filled, gap)
+    circularFill.setAttribute('stroke-dasharray', `${val}, 100`);
+    circularValue.innerText = val + '%';
+
+    // Show badge when there's signal, hide when silent
+    if (val > 0) {
+        circularBadge.classList.add('visible');
+    } else {
+        circularBadge.classList.remove('visible');
+    }
 }
 
 function decayConfidence() {
-    const current = parseInt(confFill.style.width) || 0;
-    if (current > 0) {
-        // PATCHED: Math.max prevents negative width values
-        setConfidence(Math.max(0, current - 5));
+    if (_lastConfidence > 0) {
+        setConfidence(Math.max(0, _lastConfidence - 5));
     } else {
-        // Fully decayed — scanning state
+        // Fully decayed — reset to scanning state
+        circularBadge.classList.remove('visible');
         reticle.className = 'scanning';
         scanShimmer.classList.add('shimmer-active');
         if (STATE.cardVisible) dismissCard();
