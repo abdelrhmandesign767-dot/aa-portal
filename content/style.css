@@ -1,0 +1,61 @@
+:root {
+    --gold: #d4af37;
+    --bg-black: #050505;
+    --surface: rgba(10, 10, 10, 0.98);
+    --border-gold: rgba(212, 175, 55, 0.2);
+    --luxury-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Side Blade Reconstruction */
+.side-blade-container {
+    position: fixed; right: 0; top: 0; bottom: 0;
+    width: 75%; max-width: 420px; z-index: 2000;
+    background: var(--surface);
+    backdrop-filter: blur(30px);
+    border-left: 1px solid var(--border-gold);
+    padding: 70px 40px;
+    transform: translateX(110%);
+    transition: transform 0.8s var(--luxury-ease);
+    color: #fff;
+}
+
+.side-blade-container.active { transform: translateX(0); }
+
+/* Motion Elements - Staggered Fade Up */
+.motion-element {
+    opacity: 0; 
+    transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s var(--luxury-ease);
+}
+
+.side-blade-container.active .motion-element {
+    opacity: 1; transform: translateY(0);
+}
+
+.delay-1 { transition-delay: 0.1s; }
+.delay-2 { transition-delay: 0.2s; }
+.delay-3 { transition-delay: 0.3s; }
+.delay-4 { transition-delay: 0.4s; }
+.delay-5 { transition-delay: 0.5s; }
+
+/* Blocks Styling */
+.dish-title { font-family: 'Playfair Display', serif; font-size: 34px; color: var(--gold); margin-bottom: 8px; }
+.google-rating-link { text-decoration: none; display: flex; align-items: center; gap: 10px; margin: 25px 0; }
+.stars { color: var(--gold); font-size: 20px; }
+.review-text { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid var(--border-gold); }
+
+.standalone-price, .standalone-ingredients, .standalone-video {
+    margin-top: 35px; padding-top: 25px; border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.price-value { font-size: 28px; font-weight: 700; color: var(--gold); }
+.ingredient-text { color: #999; line-height: 1.8; font-size: 15px; font-weight: 300; }
+
+.luxury-video-btn {
+    background: var(--gold); border: none; width: 100%; padding: 18px;
+    color: #000; font-weight: 800; letter-spacing: 3px; cursor: pointer; border-radius: 2px;
+    transition: 0.3s;
+}
+.luxury-video-btn:hover { background: #fff; transform: scale(1.02); }
+
+.close-btn { position: absolute; top: 25px; right: 25px; background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; opacity: 0.5; }
