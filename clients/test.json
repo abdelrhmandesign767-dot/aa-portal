@@ -1,16 +1,30 @@
 {
-  "restaurantName": "LUMINA Gastronomy",
+  "restaurantInfo": {
+    "name": "LUMINA Gastronomy",
+    "themeColor": "#d4af37"
+  },
   "menu": [
     {
       "id": "dish_001",
-      "name": "Golden Ribeye Steak",
-      "category": "Premium Meats",
-      "price": "$85.00",
-      "ingredients": "Dry-aged Wagyu, Truffle Butter, Smoked Himalayan Salt, Rosemary Infusion.",
-      "rating": "4.9",
-      "videoUrl": "https://www.w3schools.com/html/mov_bbb.mp4",
-      "dishImage": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500",
-      "glowImage": "https://i.imgur.com/8H9y6K8.png"
+      "name": "Golden Wagyu",
+      "category": "Main",
+      "price": "$95",
+      "description": "Premium beef with truffle essence.",
+      "ingredients": ["A5 Wagyu", "Truffle", "Gold Leaf"],
+      "image": "./content/dish1.png",
+      "video": "https://www.w3schools.com/html/mov_bbb.mp4",
+      "rating": 5.0
+    },
+    {
+      "id": "dish_002",
+      "name": "Ocean Pearl",
+      "category": "Seafood",
+      "price": "$55",
+      "description": "Fresh scallops with yuzu.",
+      "ingredients": ["Scallops", "Yuzu"],
+      "image": "./content/dish2.png",
+      "video": "https://www.w3schools.com/html/mov_bbb.mp4",
+      "rating": 4.8
     }
   ]
 }
