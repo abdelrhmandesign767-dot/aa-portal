@@ -1,10 +1,16 @@
 {
-  "brand": "GOLDEN SEAFOOD",
-  "points": [
+  "restaurantName": "LUMINA Gastronomy",
+  "menu": [
     {
-      "angle": 195,
-      "name": "Artisanal Seafood Linguine",
-      "info": "Fresh mussels, clams, and calamari tossed in a San Marzano tomato base with handmade linguine pasta. Perfect Mediterranean blend."
+      "id": "dish_001",
+      "name": "Golden Ribeye Steak",
+      "category": "Premium Meats",
+      "price": "$85.00",
+      "ingredients": "Dry-aged Wagyu, Truffle Butter, Smoked Himalayan Salt, Rosemary Infusion.",
+      "rating": "4.9",
+      "videoUrl": "https://www.w3schools.com/html/mov_bbb.mp4",
+      "dishImage": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500",
+      "glowImage": "https://i.imgur.com/8H9y6K8.png"
     }
   ]
 }
