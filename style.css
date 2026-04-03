@@ -269,6 +269,18 @@ body::after {
    Golden-ratio width. Slides from right.
    5 separated blocks, each a motion-element with delay class.
 ═══════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   ★ LUXURY SIDE BLADE — Demo-Ready Presentation UI
+   
+   • Width: 80vw (mobile-optimized, scales responsively)
+   • Background: rgba(10, 10, 10, 0.98) — ultra-dark obsidian
+   • Blur: 30px backdrop-filter — glassmorphism depth effect
+   • 5 Vertical Blocks: Title, Rating, Price, Ingredients, Video CTA
+   • Staggered Reveal: delay-1 to delay-5 (0.10s → 0.58s cascade)
+   • Auto-Trigger: Opens automatically after 2 seconds in demo mode
+   
+   All data-i18n attributes preserved for multi-language support.
+═══════════════════════════════════════════════════════════════ */
 #sideBlade {
   position: fixed; right: 0; top: 0; bottom: 0;
   width: 80vw; max-width: 100%; z-index: 100;
