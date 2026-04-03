@@ -16,6 +16,9 @@
   <!-- Three.js (r128 — same version as original) -->
   <script src="https://cdn.jsdelivr.net/npm/three@r128/build/three.min.js"></script>
 
+  <!-- ★★★ EXTERNAL DATA FILE — loads from subfolder ★★★ -->
+  <script src="umami-prime/data.js"></script>
+
   <!-- NOTE: MindAR script kept for production integration.
        In demo mode the AR cycle uses a JS timer instead of .mind anchors.
        Swap initDemoCycle() with real anchor callbacks when deploying. -->
@@ -574,7 +577,6 @@
     [dir="rtl"] .blade-x { right: auto; left: var(--s4); }
     [dir="rtl"] .allergen-strip { border-left: none; border-right: 2px solid rgba(224,90,90,0.55); }
   </style>
-<base target="_blank">
 </head>
 <body>
 
@@ -639,13 +641,6 @@
 
 <!-- ══════════════════════════════════════════════════════════════
      ★ SIDE BLADE — 5 motion-element blocks
-       Block 1 (.delay-1): Title + Category
-       Block 2 (.delay-2): Google Maps Rating Link
-       Block 3 (.delay-3): Price
-       Block 4 (.delay-4): Ingredients (text-only) + Allergen
-       Block 5 (.delay-5): Video CTA + Social Share
-     Reserve button — REMOVED
-     Ingredient icon tags — REMOVED
 ════════════════════════════════════════════════════════════════ -->
 <aside id="sideBlade" aria-label="Dish details" aria-hidden="true">
   <button class="blade-x" id="bladeClose" aria-label="Close">✕</button>
@@ -721,164 +716,18 @@
 ════════════════════════════════════════════════════════════════ -->
 <script>
 /* ─────────────────────────────────────────────────────────────────
-   CONFIG — All restaurant data, AR settings, i18n strings here.
-   To connect to a live menu API set CONFIG.api.menuUrl.
-   To connect to a real MindAR target file set CONFIG.ar.mindFile
-   and wire up anchor callbacks in initARAnchors().
+   ★★★ CONFIGURATION — Loaded from umami-prime/data.js ★★★
+   
+   The hardcoded CONFIG has been removed. We now rely entirely on
+   RESTAURANT_DATA from the external file, with path prefixing
+   for the subfolder structure.
 ───────────────────────────────────────────────────────────────── */
-const CONFIG = {
 
-  restaurant: {
-    name:          'CULINARY AR',
-    tagline:       'Discover Culinary Masterpieces',
-    subtitle:      'CINEMA-GRADE DINING EXPERIENCE',
-    heroImage:     'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=900&q=80',
-    portalImage:   'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=80',
-    location:      'Downtown, City',
-    phone:         '+1 (555) 123-4567',
-    googleMapsUrl: 'https://maps.google.com/YOUR_RESTAURANT_LINK',
-    logo:          'https://images.unsplash.com/photo-1604661701821-ba614908a88f?w=400&q=85',
-    brandColors: {
-      primary:       '#050505',
-      accent:        '#d4af37',
-      accent_alt:    '#c9a961',
-      accent_subtle: '#8b7355',
-      highlight:     '#f5f0e8'
-    }
-  },
+// Global CONFIG will be populated from RESTAURANT_DATA
+let CONFIG = null;
 
-  ar: {
-    mindFile:   null,          // '/targets/menu.mind' in production
-    demoMode:   true,          // flip to false when real .mind file is ready
-    tiltMin:    20,
-    tiltMax:    80
-  },
-
-  api: {
-    menuUrl:        null,      // '/api/menu' → returns CONFIG.menu[] shape
-    analyticsUrl:   null
-  },
-
-  /* ─── Menu items ─────────────────────────────────────────── */
-  menu: [
-    {
-      id: 1,
-      name:        'Signature Wagyu',
-      nameArabic:  'واغيو المميز',
-      category:    'Prime Cuts',
-      categoryArabic: 'القطع الممتازة',
-      description: 'A5 Japanese Wagyu with beurre blanc and microgreens.',
-      descriptionArabic: 'واغيو ياباني من الدرجة A5 مع صلصة الزبدة البيضاء والخضار الصغيرة.',
-      price:       '$68',
-      priceRaw:    68,
-      ingredients: ['A5 Wagyu', 'Beurre Blanc', 'Microgreens', 'Shiso'],
-      ingredientsArabic: ['واغيو A5', 'صلصة الزبدة البيضاء', 'خضار صغيرة', 'شيسو'],
-      allergens:   'Contains Dairy',
-      allergensArabic: 'يحتوي على منتجات الألبان',
-      videoUrl:    'https://www.w3schools.com/html/mov_bbb.mp4',
-      image:       'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=85',
-      rating:      4.9,
-      targetIndex: 0
-    },
-    {
-      id: 2,
-      name:        'Saffron Risotto',
-      nameArabic:  'ريزوتو الزعفران',
-      category:    'Grains & Earth',
-      categoryArabic: 'الحبوب والأرض',
-      description: 'Carnaroli rice with saffron from Iran and aged Parmigiano.',
-      descriptionArabic: 'أرز كارنارولي مع الزعفران الإيراني وجبنة بارميجيانو معتقة.',
-      price:       '$32',
-      priceRaw:    32,
-      ingredients: ['Carnaroli Rice', 'Iranian Saffron', 'Aged Parmigiano', 'Osso Buco Jus'],
-      ingredientsArabic: ['أرز كارنارولي', 'زعفران إيراني', 'بارميجيانو معتق', 'مرق عظم العجل'],
-      allergens:   'Contains Dairy, Gluten',
-      allergensArabic: 'يحتوي على الألبان والغلوتين',
-      videoUrl:    'https://www.w3schools.com/html/mov_bbb.mp4',
-      image:       'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=85',
-      rating:      4.7,
-      targetIndex: 1
-    },
-    {
-      id: 3,
-      name:        'Sea Urchin Delice',
-      nameArabic:  'إسقلوب البحر',
-      category:    'Ocean',
-      categoryArabic: 'المحيط',
-      description: 'Santa Barbara uni with crispy nori and yuzu emulsion.',
-      descriptionArabic: 'إسقلوب بحر سانتا باربرا مع النوري المقرمش ومستحلب اليوسفي.',
-      price:       '$52',
-      priceRaw:    52,
-      ingredients: ['Sea Urchin (Uni)', 'Crispy Nori', 'Yuzu Emulsion', 'Shiso Flower'],
-      ingredientsArabic: ['إسقلوب البحر', 'نوري مقرمش', 'مستحلب اليوسفي', 'زهرة الشيسو'],
-      allergens:   'Contains Shellfish, Fish',
-      allergensArabic: 'يحتوي على المحار والأسماك',
-      videoUrl:    'https://www.w3schools.com/html/mov_bbb.mp4',
-      image:       'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=600&q=85',
-      rating:      4.8,
-      targetIndex: 2
-    }
-  ],
-
-  /* ─── i18n strings ─────────────────────────────────────────── */
-  i18n: {
-    en: {
-      brand:             'CULINARY AR',
-      tagline:           'Discover Culinary Masterpieces',
-      subtitle:          'CINEMA-GRADE DINING EXPERIENCE',
-      dish_title:        null,   // filled dynamically
-      dish_category:     null,
-      rate_google:       'Rate us on Google',
-      dish_price:        null,
-      price_label:       'PER PERSON',
-      ingredients_label: 'KEY INGREDIENTS',
-      dish_ingredients:  null,
-      watch_video:       'WATCH THE ARTISTRY',
-      swipe:             'SWIPE RIGHT TO DISMISS',
-      identified:        'IDENTIFIED',
-      tracking:          'TRACKING',
-      locked:            'LOCKED',
-      tap_dish:          'TAP THE DISH TO EXPLORE'
-    },
-    ar: {
-      brand:             'طهي AR',
-      tagline:           'اكتشف روائع الطهي',
-      subtitle:          'تجربة سينمائية الجودة',
-      dish_title:        null,
-      dish_category:     null,
-      rate_google:       'قيّمنا على Google',
-      dish_price:        null,
-      price_label:       'للشخص',
-      ingredients_label: 'المكونات الأساسية',
-      dish_ingredients:  null,
-      watch_video:       'شاهد فن الطهي',
-      swipe:             'اسحب لليسار للإغلاق',
-      identified:        'تم التحديد',
-      tracking:          'جاري التتبع',
-      locked:            'مقفول',
-      tap_dish:          'اضغط على الطبق'
-    },
-    fr: {
-      brand:             'CULINAIRE AR',
-      tagline:           'Découvrez les Chefs-d\'œuvre',
-      subtitle:          'EXPÉRIENCE CINÉMATOGRAPHIQUE',
-      dish_title:        null,
-      dish_category:     null,
-      rate_google:       'Notez-nous sur Google',
-      dish_price:        null,
-      price_label:       'PAR PERSONNE',
-      ingredients_label: 'INGRÉDIENTS CLÉS',
-      dish_ingredients:  null,
-      watch_video:       'REGARDER L\'ARTISANAT',
-      swipe:             'GLISSEZ POUR FERMER',
-      identified:        'IDENTIFIÉ',
-      tracking:          'SUIVI',
-      locked:            'VERROUILLÉ',
-      tap_dish:          'APPUYEZ SUR LE PLAT'
-    }
-  }
-};
-
+// Path prefix for subfolder assets
+const PATH_PREFIX = 'umami-prime/';
 
 /* ─────────────────────────────────────────────────────────────────
    STATE
@@ -900,17 +749,22 @@ const STATE = {
 ───────────────────────────────────────────────────────────────── */
 const el  = (id) => document.getElementById(id);
 
-// Enhanced translation function that checks RESTAURANT_DATA first
+// Enhanced translation function — checks RESTAURANT_DATA.i18n
 function t(key) {
-  // Check if we have external restaurant data with i18n
-  if (typeof RESTAURANT_DATA !== 'undefined' && RESTAURANT_DATA.i18n) {
-    const extLang = RESTAURANT_DATA.i18n[STATE.lang];
-    if (extLang && extLang[key] !== null && extLang[key] !== undefined) {
-      return extLang[key];
-    }
+  if (!CONFIG || !CONFIG.i18n) return key;
+  
+  const langData = CONFIG.i18n[STATE.lang];
+  if (langData && langData[key] !== null && langData[key] !== undefined) {
+    return langData[key];
   }
-  // Fall back to CONFIG i18n
-  return CONFIG.i18n[STATE.lang]?.[key] ?? CONFIG.i18n.en[key] ?? key;
+  
+  // Fallback to English
+  const enData = CONFIG.i18n.en;
+  if (enData && enData[key] !== null && enData[key] !== undefined) {
+    return enData[key];
+  }
+  
+  return key;
 }
 
 // Get dish property with bilingual support
@@ -926,6 +780,23 @@ function getDishProp(dish, prop) {
   return dish[prop] || '';
 }
 
+// Prefix path with subfolder for local assets
+function prefixPath(url) {
+  if (!url) return '';
+  
+  // Don't prefix absolute URLs (http/https) or data URIs
+  if (url.match(/^https?:\/\//) || url.match(/^data:/)) {
+    return url;
+  }
+  
+  // Don't prefix if already prefixed
+  if (url.startsWith(PATH_PREFIX)) {
+    return url;
+  }
+  
+  return PATH_PREFIX + url;
+}
+
 let _toastTimer = null;
 function toast(msg, ms = 2800) {
   clearTimeout(_toastTimer);
@@ -936,7 +807,7 @@ function toast(msg, ms = 2800) {
 }
 
 function track(name, data = {}) {
-  if (!CONFIG.api.analyticsUrl) return;
+  if (!CONFIG || !CONFIG.api || !CONFIG.api.analyticsUrl) return;
   fetch(CONFIG.api.analyticsUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -946,113 +817,86 @@ function track(name, data = {}) {
 
 
 /* ─────────────────────────────────────────────────────────────────
-   ★★★ DATA INTEGRATION — Merge external RESTAURANT_DATA ★★★
+   ★★★ DATA VALIDATION & SETUP ★★★
    
-   This function checks for external data.js file and merges it
-   into our CONFIG object, overriding defaults.
+   Validates RESTAURANT_DATA exists and sets up CONFIG with
+   proper path prefixing for all assets.
 ───────────────────────────────────────────────────────────────── */
-function integrateExternalData() {
-  // Check if external data exists (loaded from data.js)
+function validateAndSetupData() {
+  // Check if external data exists
   if (typeof RESTAURANT_DATA === 'undefined') {
-    console.log('[Data] No external RESTAURANT_DATA found, using defaults');
-    return;
+    console.error('[FATAL] RESTAURANT_DATA not found. Ensure umami-prime/data.js is loaded.');
+    alert('Error: Restaurant data not found. Please check that umami-prime/data.js exists.');
+    return false;
   }
 
-  console.log('[Data] Integrating external RESTAURANT_DATA from data.js');
+  console.log('[Data] Loading from umami-prime/data.js');
 
-  // Merge restaurant metadata
-  if (RESTAURANT_DATA.restaurant) {
-    Object.assign(CONFIG.restaurant, RESTAURANT_DATA.restaurant);
+  // Deep clone and process the data
+  CONFIG = JSON.parse(JSON.stringify(RESTAURANT_DATA));
+  
+  // Ensure menu exists
+  if (!CONFIG.menu || !Array.isArray(CONFIG.menu) || CONFIG.menu.length === 0) {
+    console.error('[FATAL] No menu items found in RESTAURANT_DATA');
+    return false;
+  }
+
+  // Prefix all local asset paths in menu items
+  CONFIG.menu.forEach((dish, index) => {
+    // Prefix image paths
+    if (dish.image && !dish.image.match(/^https?:\/\//)) {
+      dish.image = prefixPath(dish.image);
+    }
+    if (dish.dishCard && !dish.dishCard.match(/^https?:\/\//)) {
+      dish.dishCard = prefixPath(dish.dishCard);
+    }
+    if (dish.processImage && !dish.processImage.match(/^https?:\/\//)) {
+      dish.processImage = prefixPath(dish.processImage);
+    }
     
-    // Update CSS custom properties with brand colors if available
-    if (RESTAURANT_DATA.restaurant.brandColors) {
-      const colors = RESTAURANT_DATA.restaurant.brandColors;
-      const root = document.documentElement;
-      
-      if (colors.accent) {
-        root.style.setProperty('--gold', colors.accent);
-        root.style.setProperty('--gold-pale', colors.accent);
-        root.style.setProperty('--gold-mid', colors.accent + '38'); // 22% opacity
-        root.style.setProperty('--gold-glow', colors.accent + '8C'); // 55% opacity
-      }
-      if (colors.primary) {
-        root.style.setProperty('--ink', colors.primary);
-        root.style.setProperty('--surface', colors.primary + 'F7'); // 97% opacity
-      }
-      if (colors.highlight) {
-        root.style.setProperty('--white', colors.highlight);
-        root.style.setProperty('--text-hi', colors.highlight);
-      }
+    // Prefix video paths
+    if (dish.videoUrl && !dish.videoUrl.match(/^https?:\/\//)) {
+      dish.videoUrl = prefixPath(dish.videoUrl);
+    }
+    
+    console.log(`[Data] Dish ${index + 1}: ${dish.name} → image: ${dish.image}, video: ${dish.videoUrl}`);
+  });
+
+  // Prefix AR mind file path if it exists and is local
+  if (CONFIG.ar && CONFIG.ar.mindFile && !CONFIG.ar.mindFile.match(/^https?:\/\//)) {
+    CONFIG.ar.mindFile = prefixPath(CONFIG.ar.mindFile);
+  }
+
+  // Prefix hero/portal images if local
+  if (CONFIG.restaurant) {
+    if (CONFIG.restaurant.heroImage && !CONFIG.restaurant.heroImage.match(/^https?:\/\//)) {
+      CONFIG.restaurant.heroImage = prefixPath(CONFIG.restaurant.heroImage);
+    }
+    if (CONFIG.restaurant.portalImage && !CONFIG.restaurant.portalImage.match(/^https?:\/\//)) {
+      CONFIG.restaurant.portalImage = prefixPath(CONFIG.restaurant.portalImage);
+    }
+    if (CONFIG.restaurant.logo && !CONFIG.restaurant.logo.match(/^https?:\/\//)) {
+      CONFIG.restaurant.logo = prefixPath(CONFIG.restaurant.logo);
     }
   }
 
-  // Merge menu items (this is the critical fix!)
-  if (RESTAURANT_DATA.menu && Array.isArray(RESTAURANT_DATA.menu) && RESTAURANT_DATA.menu.length > 0) {
-    CONFIG.menu = RESTAURANT_DATA.menu.map(item => ({
-      // Ensure all required properties exist with fallbacks
-      id: item.id || 0,
-      name: item.name || 'Unknown Dish',
-      nameArabic: item.nameArabic || item.name || 'طبق غير معروف',
-      category: item.category || 'General',
-      categoryArabic: item.categoryArabic || item.category || 'عام',
-      description: item.description || '',
-      descriptionArabic: item.descriptionArabic || '',
-      price: item.price || '$0',
-      priceRaw: item.priceRaw || 0,
-      ingredients: item.ingredients || [],
-      ingredientsArabic: item.ingredientsArabic || item.ingredients || [],
-      allergens: item.allergens || '',
-      allergensArabic: item.allergensArabic || '',
-      videoUrl: item.videoUrl || '',
-      image: item.image || item.dishCard || '',
-      rating: item.rating || 4.5,
-      reviews: item.reviews || 0,
-      targetIndex: item.targetIndex !== undefined ? item.targetIndex : 0
-    }));
-    console.log('[Data] Loaded', CONFIG.menu.length, 'dishes from external data');
-  }
-
-  // Merge i18n strings (Arabic support from data.js)
-  if (RESTAURANT_DATA.i18n) {
-    // Merge each language
-    Object.keys(RESTAURANT_DATA.i18n).forEach(lang => {
-      if (!CONFIG.i18n[lang]) CONFIG.i18n[lang] = {};
-      Object.assign(CONFIG.i18n[lang], RESTAURANT_DATA.i18n[lang]);
-    });
-  }
-
-  // Merge AR configuration
-  if (RESTAURANT_DATA.ar) {
-    Object.assign(CONFIG.ar, RESTAURANT_DATA.ar);
-  }
-
-  console.log('[Data] Integration complete. Restaurant:', CONFIG.restaurant.name);
+  console.log('[Data] Setup complete. Menu items:', CONFIG.menu.length);
+  console.log('[Data] AR mind file:', CONFIG.ar?.mindFile || 'none');
+  
+  return true;
 }
 
 
 /* ─────────────────────────────────────────────────────────────────
-   ★★★ REFACTOR 1 — THREE.JS PARALLAX DEPTH SYSTEM ★★★
-   
-   Architecture matches the specified <a-entity> structure:
-   
-     #ar-dish-container  (THREE.Group)
-       ├── glowMesh      bg layer  pos.z=-0.15  scale×1.5  slow rotation
-       └── dishMesh      fg layer  pos.z=0      scale×1    foreground
-   
-   The whole group receives gyro/mouse input for 3-D parallax.
-   Raycasting on #arOverlay clicks fires openBlade().
-   
-   Hot-swap: switchDish(dish) replaces the dishMesh texture live.
+   THREE.JS PARALLAX DEPTH SYSTEM
 ───────────────────────────────────────────────────────────────── */
 
-/** Build a golden radial glow + steam wisp texture entirely on a canvas. */
 function makeGlowTexture() {
   const cv  = document.createElement('canvas');
   cv.width  = 512;
   cv.height = 512;
   const ctx = cv.getContext('2d');
 
-  // Radial gold halo
   const halo = ctx.createRadialGradient(256,256,0, 256,256,256);
   halo.addColorStop(0,    'rgba(212,175,55,0.85)');
   halo.addColorStop(0.28, 'rgba(200,145,40,0.55)');
@@ -1061,7 +905,6 @@ function makeGlowTexture() {
   ctx.fillStyle = halo;
   ctx.fillRect(0,0,512,512);
 
-  // Steam wisps
   const wisps = [[230,120,48],[280,95,36],[255,155,55],[220,175,42],[290,140,38],[245,105,52]];
   wisps.forEach(([wx,wy,r]) => {
     const g = ctx.createRadialGradient(wx,wy,0, wx,wy,r);
@@ -1071,7 +914,6 @@ function makeGlowTexture() {
     ctx.fillRect(0,0,512,512);
   });
 
-  // Outer soft bloom ring
   const bloom = ctx.createRadialGradient(256,256,160, 256,256,256);
   bloom.addColorStop(0,   'rgba(212,175,55,0)');
   bloom.addColorStop(0.7, 'rgba(212,175,55,0.08)');
@@ -1086,7 +928,6 @@ function buildParallaxScene(dish) {
   const canvas  = el('parallaxCanvas');
   const W = window.innerWidth, H = window.innerHeight;
 
-  // Renderer — alpha:true keeps it transparent over the camera feed
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setSize(W, H);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -1096,15 +937,12 @@ function buildParallaxScene(dish) {
   const camera = new THREE.PerspectiveCamera(52, W/H, 0.01, 100);
   camera.position.z = 2.4;
 
-  /* ── #ar-dish-container ──────────────────────────────────── */
   const arDishContainer = new THREE.Group();
   arDishContainer.name = 'ar-dish-container';
   scene.add(arDishContainer);
 
-  /* ── Background Layer: glow/steam ───────────────────────────
-     position="0 0 -0.15"  scale="1.5"  continuous rotation     */
   const glowMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.4, 2.4),   // 1.5× of dish plane
+    new THREE.PlaneGeometry(2.4, 2.4),
     new THREE.MeshBasicMaterial({
       map:         makeGlowTexture(),
       transparent: true,
@@ -1113,15 +951,13 @@ function buildParallaxScene(dish) {
       blending:    THREE.AdditiveBlending
     })
   );
-  glowMesh.position.z = -0.15;          // behind foreground dish
+  glowMesh.position.z = -0.15;
   glowMesh.name = 'ar-glow-layer';
   arDishContainer.add(glowMesh);
 
-  /* ── Foreground Layer: dish image ────────────────────────────
-     position="0 0 0"                                            */
   const dishMat   = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
   const dishMesh  = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), dishMat);
-  dishMesh.position.z = 0;              // front
+  dishMesh.position.z = 0;
   dishMesh.name = 'ar-dish-layer';
   arDishContainer.add(dishMesh);
 
@@ -1136,15 +972,11 @@ function buildParallaxScene(dish) {
         dishMat.needsUpdate = true;
       },
       undefined,
-      () => { dishMat.opacity = 0.8; }   // graceful fallback
+      () => { dishMat.opacity = 0.8; }
     );
   }
   loadDishImage(dish.image);
 
-  /* ── Raycaster — wired to #arOverlay clicks ─────────────────
-     The overlay sits above the canvas (canvas is pointer-events:none)
-     so real touch/click events only arrive here.
-     ★★★ BRIDGE: hit on any mesh → openBlade(currentDish) ★★★  */
   const ray     = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const overlay = el('arOverlay');
@@ -1161,9 +993,6 @@ function buildParallaxScene(dish) {
   overlay.addEventListener('click',      onHit);
   overlay.addEventListener('touchstart', onHit, { passive: true });
 
-  /* ── Mouse / Gyro parallax ──────────────────────────────────
-     Small rotation of arDishContainer creates depth separation
-     between the glowMesh (-0.15) and dishMesh (0).             */
   let tgtX = 0, tgtY = 0, curX = 0, curY = 0;
 
   window.addEventListener('mousemove', (e) => {
@@ -1175,9 +1004,6 @@ function buildParallaxScene(dish) {
     if (e.beta  != null) tgtX = ((e.beta  - 45) / 45) * -0.22;
   });
 
-  /* ── Animation loop ─────────────────────────────────────────
-     glowMesh.rotation.z  → 35 000 ms full revolution (spec)
-     arDishContainer.rotation → lerped parallax                 */
   const clock = new THREE.Clock();
   let   raf   = null;
 
@@ -1185,10 +1011,8 @@ function buildParallaxScene(dish) {
     raf = requestAnimationFrame(loop);
     const t  = clock.getElapsedTime();
 
-    // ★ Slow, continuous rotation on the background glow layer
     glowMesh.rotation.z = t * (Math.PI * 2 / 35);
 
-    // ★ Parallax lerp
     const L = 0.04;
     curX += (tgtX - curX) * L;
     curY += (tgtY - curY) * L;
@@ -1199,7 +1023,6 @@ function buildParallaxScene(dish) {
   }
   loop();
 
-  /* ── Resize ─────────────────────────────────────────────── */
   function onResize() {
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h);
@@ -1208,7 +1031,6 @@ function buildParallaxScene(dish) {
   }
   window.addEventListener('resize', onResize);
 
-  /* ── Public context ─────────────────────────────────────── */
   return {
     renderer, scene, camera,
     arDishContainer, glowMesh, dishMesh,
@@ -1224,17 +1046,14 @@ function buildParallaxScene(dish) {
   };
 }
 
-/** Hot-swap the foreground dish texture (no scene rebuild needed). */
 function switchDish(dishOrIndex) {
   let dish;
   
-  // Handle both dish object and index
   if (typeof dishOrIndex === 'number') {
     STATE.currentDishIndex = dishOrIndex;
     dish = CONFIG.menu[dishOrIndex];
   } else if (typeof dishOrIndex === 'object') {
     dish = dishOrIndex;
-    // Find index
     STATE.currentDishIndex = CONFIG.menu.findIndex(d => d.id === dish.id);
     if (STATE.currentDishIndex === -1) STATE.currentDishIndex = 0;
   } else {
@@ -1250,15 +1069,12 @@ function switchDish(dishOrIndex) {
   STATE.currentDish = dish;
   if (STATE.pxCtx) STATE.pxCtx.loadDishImage(dish.image);
   
-  console.log('[switchDish] Switched to:', dish.name, '(index:', STATE.currentDishIndex + ')');
+  console.log('[switchDish] Switched to:', getDishProp(dish, 'name'), '(index:', STATE.currentDishIndex + ')');
 }
 
 
 /* ─────────────────────────────────────────────────────────────────
-   ★★★ REFACTOR 2+3 — SIDE BLADE open / close
-   openBlade()  → populates all 5 blocks + adds .active
-   closeBlade() → removes .active (motion-elements reverse)
-   The CSS then handles everything else.
+   SIDE BLADE — open / close with bilingual support
 ───────────────────────────────────────────────────────────────── */
 function openBlade(dish) {
   if (!dish) dish = STATE.currentDish;
@@ -1270,24 +1086,23 @@ function openBlade(dish) {
   STATE.bladeOpen   = true;
   STATE.currentDish = dish;
 
-  /* ── Block 1: Title + Category ─────────────────────────────── */
+  // Block 1: Title + Category — using bilingual helper
   el('bladeTitle').textContent    = getDishProp(dish, 'name');
   el('bladeCategory').textContent = getDishProp(dish, 'category');
 
-  /* ── Block 2: Rating ────────────────────────────────────────── */
+  // Block 2: Rating
   el('bladeStars').textContent    = '★'.repeat(Math.round(dish.rating || 4.5));
   el('bladeScore').textContent    = (dish.rating || 4.5).toFixed(1);
   el('bladeRateCta').textContent  = t('rate_google');
-  el('googleMapsLink').href       = CONFIG.restaurant.googleMapsUrl || '#';
+  el('googleMapsLink').href       = CONFIG.restaurant?.googleMapsUrl || '#';
 
-  /* ── Block 3: Price ─────────────────────────────────────────── */
+  // Block 3: Price
   el('bladePrice').textContent      = dish.price || '$0';
   el('bladePriceLabel').textContent = t('price_label');
 
-  /* ── Block 4: Ingredients (clean prose, no icons) ───────────── */
+  // Block 4: Ingredients — bilingual
   el('bladeIngLabel').textContent = t('ingredients_label');
   
-  // Use bilingual ingredients
   const ingredients = getDishProp(dish, 'ingredients');
   if (Array.isArray(ingredients)) {
     el('bladeIngText').textContent = ingredients.join('  ·  ');
@@ -1295,7 +1110,7 @@ function openBlade(dish) {
     el('bladeIngText').textContent = ingredients || '';
   }
   
-  // Allergens with bilingual support
+  // Allergens — bilingual
   const allergens = getDishProp(dish, 'allergens');
   if (allergens) {
     el('allergenText').textContent       = allergens;
@@ -1304,21 +1119,20 @@ function openBlade(dish) {
     el('allergenStrip').style.display    = 'none';
   }
 
-  /* ── Block 5: Video CTA label ───────────────────────────────── */
+  // Block 5: Video CTA
   el('videoCtaLabel').textContent = t('watch_video');
 
-  /* ── Gesture hint ───────────────────────────────────────────── */
+  // Gesture hint
   el('gestureHint').textContent   = t('swipe');
 
-  /* ── ARIA ───────────────────────────────────────────────────── */
+  // ARIA
   el('sideBlade').setAttribute('aria-hidden', 'false');
 
-  /* ★★★ BRIDGE: .active triggers CSS cubic-bezier slide
-     + all .motion-element staggered cascade ★★★ */
+  // Trigger animation
   el('sideBlade').classList.add('active');
   el('hudStatus').textContent = t('locked');
 
-  /* Touch swipe-right to dismiss */
+  // Touch handlers
   document.addEventListener('touchstart', _swipeStart, { passive: true });
   document.addEventListener('touchend',   _swipeEnd,   { passive: true });
 
@@ -1340,7 +1154,6 @@ function closeBlade() {
   track('dish_dismissed');
 }
 
-/* Swipe-right gesture: diffX < -90 → close */
 function _swipeStart(e) { STATE.touchStartX = e.touches[0].clientX; }
 function _swipeEnd(e) {
   if (!STATE.bladeOpen) return;
@@ -1364,14 +1177,13 @@ function applyLang() {
   el('hudName').textContent      = t('brand').substring(0,2).toUpperCase();
 
   if (STATE.bladeOpen && STATE.currentDish) {
-    // Refresh blade with current dish to update language
     openBlade(STATE.currentDish);
   }
 }
 
 
 /* ─────────────────────────────────────────────────────────────────
-   CAMERA — live video feed for environment background
+   CAMERA — live video feed
 ───────────────────────────────────────────────────────────────── */
 function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) return;
@@ -1390,20 +1202,6 @@ function startCamera() {
 
 /* ─────────────────────────────────────────────────────────────────
    AR CYCLE — demo mode rotates through menu items
-   In production: replace with MindAR anchor callbacks.
-   
-   MindAR integration stub (uncomment when .mind file is ready):
-   
-     const mindar = new window.MINDAR.IMAGE.MindARThree({
-       container: document.body,
-       imageTargetSrc: CONFIG.ar.mindFile
-     });
-     CONFIG.menu.forEach((dish) => {
-       const anchor = mindar.addAnchor(dish.targetIndex);
-       anchor.onTargetFound = () => { switchDish(dish); openBlade(dish); };
-       anchor.onTargetLost  = () => closeBlade();
-     });
-     await mindar.start();
 ───────────────────────────────────────────────────────────────── */
 function startDemoCycle() {
   let idx = 0;
@@ -1414,7 +1212,6 @@ function startDemoCycle() {
     return;
   }
 
-  // Prime first dish immediately
   switchDish(0);
   el('hudStatus').textContent = t('tracking');
 
@@ -1423,7 +1220,6 @@ function startDemoCycle() {
     idx = (idx + 1) % dishes.length;
     switchDish(idx);
 
-    // Simulate target found after 1 s if device is tilted
     if (STATE.deviceTiltOK) {
       setTimeout(() => {
         if (!STATE.bladeOpen) openBlade(CONFIG.menu[idx]);
@@ -1434,12 +1230,14 @@ function startDemoCycle() {
 
 window.addEventListener('deviceorientation', (e) => {
   const beta = Math.abs(e.beta || 0);
-  STATE.deviceTiltOK = beta >= CONFIG.ar.tiltMin && beta <= CONFIG.ar.tiltMax;
+  if (CONFIG && CONFIG.ar) {
+    STATE.deviceTiltOK = beta >= CONFIG.ar.tiltMin && beta <= CONFIG.ar.tiltMax;
+  }
 });
 
 
 /* ─────────────────────────────────────────────────────────────────
-   START AR EXPERIENCE (called when portal button is tapped)
+   START AR EXPERIENCE
 ───────────────────────────────────────────────────────────────── */
 function startAR() {
   STATE.started = true;
@@ -1451,19 +1249,17 @@ function startAR() {
 
   startCamera();
 
-  // Request gyro permission on iOS 13+
   if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission()
       .then(p => { if (p === 'granted') STATE.deviceTiltOK = true; })
       .catch(() => {});
   }
 
-  // Use first dish or current dish index
   const startDish = CONFIG.menu[STATE.currentDishIndex] || CONFIG.menu[0];
   STATE.pxCtx = buildParallaxScene(startDish);
   STATE.currentDish = startDish;
   
-  if (CONFIG.ar.demoMode) startDemoCycle();
+  if (CONFIG.ar && CONFIG.ar.demoMode) startDemoCycle();
 
   track('ar_started');
   toast(t('tap_dish'));
@@ -1476,9 +1272,8 @@ function startAR() {
 function initLaunch() {
   applyLang();
 
-  // Use external restaurant data for branding if available
-  el('launchBg').style.backgroundImage  = `url('${CONFIG.restaurant.heroImage}')`;
-  el('portalImg').style.backgroundImage = `url('${CONFIG.restaurant.portalImage || CONFIG.restaurant.heroImage}')`;
+  el('launchBg').style.backgroundImage  = `url('${CONFIG.restaurant?.heroImage}')`;
+  el('portalImg').style.backgroundImage = `url('${CONFIG.restaurant?.portalImage || CONFIG.restaurant?.heroImage}')`;
 
   el('portalBtn').addEventListener('click', () => {
     track('portal_tapped');
@@ -1486,7 +1281,6 @@ function initLaunch() {
     setTimeout(startAR, 240);
   });
 
-  // Language selector
   document.querySelectorAll('.lang-opt').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.lang-opt').forEach(b => b.classList.remove('active'));
@@ -1497,10 +1291,9 @@ function initLaunch() {
     });
   });
 
-  // Info / menu corner buttons
   el('btnInfo').addEventListener('click', () => {
-    const loc = CONFIG.restaurant.location || 'Unknown';
-    const phone = CONFIG.restaurant.phone || '';
+    const loc = CONFIG.restaurant?.location || 'Unknown';
+    const phone = CONFIG.restaurant?.phone || '';
     toast(`📍 ${loc}  ·  📞 ${phone}`);
   });
   el('btnMenu').addEventListener('click', () => toast('FULL MENU — Coming Soon'));
@@ -1508,13 +1301,10 @@ function initLaunch() {
 
 
 /* ─────────────────────────────────────────────────────────────────
-   EVENT WIRING — Blade controls, modal, share
+   EVENT WIRING
 ───────────────────────────────────────────────────────────────── */
-
-// Close blade
 el('bladeClose').addEventListener('click', closeBlade);
 
-// Video CTA → modal
 el('videoCta').addEventListener('click', () => {
   if (!STATE.currentDish) return;
   const videoUrl = STATE.currentDish.videoUrl;
@@ -1528,7 +1318,6 @@ el('videoCta').addEventListener('click', () => {
   track('video_opened', { dish: STATE.currentDish.name });
 });
 
-// Modal close
 el('modalClose').addEventListener('click', () => {
   el('videoModal').classList.remove('open');
   el('modalVideo').pause();
@@ -1538,7 +1327,6 @@ el('videoModal').addEventListener('click', (e) => {
   if (e.target === el('videoModal')) el('modalClose').click();
 });
 
-// Social share
 el('shareIG').addEventListener('click', () => {
   if (!STATE.currentDish) return;
   const dishName = getDishProp(STATE.currentDish, 'name');
@@ -1558,19 +1346,21 @@ el('shareMail').addEventListener('click', () => {
   track('shared', { platform: 'email', dish: dishName });
 });
 
-// Keyboard shortcuts
+// Keyboard shortcuts — keys 1, 2, 3 trigger specific dishes
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (el('videoModal').classList.contains('open')) { el('modalClose').click(); return; }
     if (STATE.bladeOpen) { closeBlade(); return; }
   }
+  
   // Space bar → enter AR from launch screen
   if (e.key === ' ' && !STATE.started) {
     el('launchScreen').classList.add('hidden');
     setTimeout(startAR, 240);
   }
-  // Dev: press 1/2/3 to trigger dishes directly
-  if (['1','2','3'].includes(e.key) && STATE.started) {
+  
+  // ★★★ Keys 1, 2, 3 trigger specific dishes from CONFIG.menu ★★★
+  if (['1','2','3'].includes(e.key) && STATE.started && CONFIG) {
     const idx = +e.key - 1;
     if (idx < CONFIG.menu.length) { 
       if (STATE.bladeOpen) closeBlade(); 
@@ -1584,24 +1374,13 @@ window.addEventListener('keydown', (e) => {
 
 
 /* ─────────────────────────────────────────────────────────────────
-   BOOT
+   BOOT — Initialize with external data
 ───────────────────────────────────────────────────────────────── */
-window.addEventListener('DOMContentLoaded', async () => {
-  // ★★★ CRITICAL: Integrate external data BEFORE anything else ★★★
-  integrateExternalData();
-  
-  // Optional: pull live menu from API (overrides data.js if successful)
-  if (CONFIG.api.menuUrl) {
-    try {
-      const res = await fetch(CONFIG.api.menuUrl);
-      if (res.ok) {
-        const apiMenu = await res.json();
-        if (Array.isArray(apiMenu) && apiMenu.length > 0) {
-          CONFIG.menu = apiMenu;
-          console.log('[Data] API menu loaded:', apiMenu.length, 'items');
-        }
-      }
-    } catch { /* use data.js or defaults */ }
+window.addEventListener('DOMContentLoaded', () => {
+  // Validate and setup data from umami-prime/data.js
+  if (!validateAndSetupData()) {
+    // Fatal error — data not loaded
+    return;
   }
   
   initLaunch();
