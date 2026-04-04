@@ -27,7 +27,7 @@
        Gold-on-black luxury. Every size from the φ scale (×1.618).
     ═══════════════════════════════════════════════════════════════ */
     :root {
-      /* Palette - Will be dynamically updated by restaurant data */
+      /* Palette */
       --gold:          #d4af37;
       --gold-pale:     #e8d48a;
       --gold-dim:      rgba(212,175,55,0.10);
@@ -720,6 +720,80 @@
 ════════════════════════════════════════════════════════════════ -->
 <script>
 /* ─────────────────────────────────────────────────────────────────
+   DATA BRIDGE (add-on) — Checks for RESTAURANT_DATA global, merges into CONFIG,
+   applies 'umami-prime/' prefix to all image, video and .mind file URLs.
+───────────────────────────────────────────────────────────────── */
+(function applyDataBridge() {
+  if (typeof window.RESTAURANT_DATA !== 'undefined' && window.RESTAURANT_DATA) {
+    const data = window.RESTAURANT_DATA;
+
+    // Helper: prefix relative asset paths with "umami-prime/"
+    const prefixUrl = (url) => {
+      if (!url || typeof url !== 'string') return url;
+      const trimmed = url.trim();
+      if (trimmed === '') return trimmed;
+      // Skip absolute URLs and already prefixed ones
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://') ||
+          trimmed.startsWith('//') || trimmed.startsWith('data:') ||
+          trimmed.startsWith('umami-prime/')) {
+        return trimmed;
+      }
+      return 'umami-prime/' + trimmed;
+    };
+
+    // 1. Merge restaurant data
+    if (data.restaurant) {
+      if (data.restaurant.name) CONFIG.restaurant.name = data.restaurant.name;
+      if (data.restaurant.tagline) CONFIG.restaurant.tagline = data.restaurant.tagline;
+      if (data.restaurant.subtitle) CONFIG.restaurant.subtitle = data.restaurant.subtitle;
+      if (data.restaurant.heroImage) CONFIG.restaurant.heroImage = prefixUrl(data.restaurant.heroImage);
+      if (data.restaurant.portalImage) CONFIG.restaurant.portalImage = prefixUrl(data.restaurant.portalImage);
+      if (data.restaurant.location) CONFIG.restaurant.location = data.restaurant.location;
+      if (data.restaurant.phone) CONFIG.restaurant.phone = data.restaurant.phone;
+      if (data.restaurant.googleMapsUrl) CONFIG.restaurant.googleMapsUrl = data.restaurant.googleMapsUrl;
+    }
+
+    // 2. Merge AR config (mind file)
+    if (data.ar) {
+      if (data.ar.mindFile) CONFIG.ar.mindFile = prefixUrl(data.ar.mindFile);
+      if (typeof data.ar.demoMode !== 'undefined') CONFIG.ar.demoMode = data.ar.demoMode;
+    }
+
+    // 3. Merge menu array
+    if (data.menu && Array.isArray(data.menu)) {
+      CONFIG.menu = data.menu.map(dish => ({
+        ...dish,
+        image: prefixUrl(dish.image),
+        videoUrl: prefixUrl(dish.videoUrl)
+      }));
+    } else if (data.menu === null || data.menu === undefined) {
+      // keep existing CONFIG.menu but prefix its URLs just in case (safe)
+      CONFIG.menu = CONFIG.menu.map(dish => ({
+        ...dish,
+        image: prefixUrl(dish.image),
+        videoUrl: prefixUrl(dish.videoUrl)
+      }));
+    } else {
+      // no menu provided, still prefix existing menu URLs
+      CONFIG.menu = CONFIG.menu.map(dish => ({
+        ...dish,
+        image: prefixUrl(dish.image),
+        videoUrl: prefixUrl(dish.videoUrl)
+      }));
+    }
+
+    // Also ensure any standalone image/hero fields inside menu are already handled above.
+    // Additionally, prefix any other url fields that might be present but not covered.
+    if (CONFIG.ar.mindFile) CONFIG.ar.mindFile = prefixUrl(CONFIG.ar.mindFile);
+  } else {
+    // Even without RESTAURANT_DATA, we apply prefix to default URLs if they are relative? Not required by spec,
+    // but we keep default behavior unchanged. However we must respect original Unsplash absolute URLs (no prefix).
+    // According to critical path: we only add prefix when RESTAURANT_DATA exists. If not present, keep original URLs.
+    // So no action.
+  }
+})();
+
+/* ─────────────────────────────────────────────────────────────────
    CONFIG — All restaurant data, AR settings, i18n strings here.
    To connect to a live menu API set CONFIG.api.menuUrl.
    To connect to a real MindAR target file set CONFIG.ar.mindFile
@@ -735,15 +809,7 @@ const CONFIG = {
     portalImage:   'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=80',
     location:      'Downtown, City',
     phone:         '+1 (555) 123-4567',
-    googleMapsUrl: 'https://maps.google.com/YOUR_RESTAURANT_LINK',
-    logo:          'https://images.unsplash.com/photo-1604661701821-ba614908a88f?w=400&q=85',
-    brandColors: {
-      primary:       '#050505',
-      accent:        '#d4af37',
-      accent_alt:    '#c9a961',
-      accent_subtle: '#8b7355',
-      highlight:     '#f5f0e8'
-    }
+    googleMapsUrl: 'https://maps.google.com/YOUR_RESTAURANT_LINK'
   },
 
   ar: {
@@ -763,17 +829,12 @@ const CONFIG = {
     {
       id: 1,
       name:        'Signature Wagyu',
-      nameArabic:  'واغيو المميز',
       category:    'Prime Cuts',
-      categoryArabic: 'القطع الممتازة',
       description: 'A5 Japanese Wagyu with beurre blanc and microgreens.',
-      descriptionArabic: 'واغيو ياباني من الدرجة A5 مع صلصة الزبدة البيضاء والخضار الصغيرة.',
       price:       '$68',
       priceRaw:    68,
       ingredients: ['A5 Wagyu', 'Beurre Blanc', 'Microgreens', 'Shiso'],
-      ingredientsArabic: ['واغيو A5', 'صلصة الزبدة البيضاء', 'خضار صغيرة', 'شيسو'],
       allergens:   'Contains Dairy',
-      allergensArabic: 'يحتوي على منتجات الألبان',
       videoUrl:    'https://www.w3schools.com/html/mov_bbb.mp4',
       image:       'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=85',
       rating:      4.9,
@@ -782,17 +843,12 @@ const CONFIG = {
     {
       id: 2,
       name:        'Saffron Risotto',
-      nameArabic:  'ريزوتو الزعفران',
       category:    'Grains & Earth',
-      categoryArabic: 'الحبوب والأرض',
       description: 'Carnaroli rice with saffron from Iran and aged Parmigiano.',
-      descriptionArabic: 'أرز كارنارولي مع الزعفران الإيراني وجبنة بارميجيانو معتقة.',
       price:       '$32',
       priceRaw:    32,
       ingredients: ['Carnaroli Rice', 'Iranian Saffron', 'Aged Parmigiano', 'Osso Buco Jus'],
-      ingredientsArabic: ['أرز كارنارولي', 'زعفران إيراني', 'بارميجيانو معتق', 'مرق عظم العجل'],
       allergens:   'Contains Dairy, Gluten',
-      allergensArabic: 'يحتوي على الألبان والغلوتين',
       videoUrl:    'https://www.w3schools.com/html/mov_bbb.mp4',
       image:       'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=85',
       rating:      4.7,
@@ -801,17 +857,12 @@ const CONFIG = {
     {
       id: 3,
       name:        'Sea Urchin Delice',
-      nameArabic:  'إسقلوب البحر',
       category:    'Ocean',
-      categoryArabic: 'المحيط',
       description: 'Santa Barbara uni with crispy nori and yuzu emulsion.',
-      descriptionArabic: 'إسقلوب بحر سانتا باربرا مع النوري المقرمش ومستحلب اليوسفي.',
       price:       '$52',
       priceRaw:    52,
       ingredients: ['Sea Urchin (Uni)', 'Crispy Nori', 'Yuzu Emulsion', 'Shiso Flower'],
-      ingredientsArabic: ['إسقلوب البحر', 'نوري مقرمش', 'مستحلب اليوسفي', 'زهرة الشيسو'],
       allergens:   'Contains Shellfish, Fish',
-      allergensArabic: 'يحتوي على المحار والأسماك',
       videoUrl:    'https://www.w3schools.com/html/mov_bbb.mp4',
       image:       'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=600&q=85',
       rating:      4.8,
@@ -886,7 +937,6 @@ const STATE = {
   started:      false,
   bladeOpen:    false,
   currentDish:  null,
-  currentDishIndex: 0,
   lang:         'en',
   deviceTiltOK: false,
   touchStartX:  0,
@@ -898,32 +948,7 @@ const STATE = {
    UTILS
 ───────────────────────────────────────────────────────────────── */
 const el  = (id) => document.getElementById(id);
-
-// Enhanced translation function that checks RESTAURANT_DATA first
-function t(key) {
-  // Check if we have external restaurant data with i18n
-  if (typeof RESTAURANT_DATA !== 'undefined' && RESTAURANT_DATA.i18n) {
-    const extLang = RESTAURANT_DATA.i18n[STATE.lang];
-    if (extLang && extLang[key] !== null && extLang[key] !== undefined) {
-      return extLang[key];
-    }
-  }
-  // Fall back to CONFIG i18n
-  return CONFIG.i18n[STATE.lang]?.[key] ?? CONFIG.i18n.en[key] ?? key;
-}
-
-// Get dish property with bilingual support
-function getDishProp(dish, prop) {
-  if (!dish) return '';
-  
-  // If Arabic mode and Arabic property exists, use it
-  if (STATE.lang === 'ar') {
-    const arabicProp = prop + 'Arabic';
-    if (dish[arabicProp]) return dish[arabicProp];
-  }
-  
-  return dish[prop] || '';
-}
+const t   = (key) => CONFIG.i18n[STATE.lang]?.[key] ?? CONFIG.i18n.en[key] ?? key;
 
 let _toastTimer = null;
 function toast(msg, ms = 2800) {
@@ -941,91 +966,6 @@ function track(name, data = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ event: name, lang: STATE.lang, ...data })
   }).catch(() => {});
-}
-
-
-/* ─────────────────────────────────────────────────────────────────
-   ★★★ DATA INTEGRATION — Merge external RESTAURANT_DATA ★★★
-   
-   This function checks for external data.js file and merges it
-   into our CONFIG object, overriding defaults.
-───────────────────────────────────────────────────────────────── */
-function integrateExternalData() {
-  // Check if external data exists (loaded from data.js)
-  if (typeof RESTAURANT_DATA === 'undefined') {
-    console.log('[Data] No external RESTAURANT_DATA found, using defaults');
-    return;
-  }
-
-  console.log('[Data] Integrating external RESTAURANT_DATA from data.js');
-
-  // Merge restaurant metadata
-  if (RESTAURANT_DATA.restaurant) {
-    Object.assign(CONFIG.restaurant, RESTAURANT_DATA.restaurant);
-    
-    // Update CSS custom properties with brand colors if available
-    if (RESTAURANT_DATA.restaurant.brandColors) {
-      const colors = RESTAURANT_DATA.restaurant.brandColors;
-      const root = document.documentElement;
-      
-      if (colors.accent) {
-        root.style.setProperty('--gold', colors.accent);
-        root.style.setProperty('--gold-pale', colors.accent);
-        root.style.setProperty('--gold-mid', colors.accent + '38'); // 22% opacity
-        root.style.setProperty('--gold-glow', colors.accent + '8C'); // 55% opacity
-      }
-      if (colors.primary) {
-        root.style.setProperty('--ink', colors.primary);
-        root.style.setProperty('--surface', colors.primary + 'F7'); // 97% opacity
-      }
-      if (colors.highlight) {
-        root.style.setProperty('--white', colors.highlight);
-        root.style.setProperty('--text-hi', colors.highlight);
-      }
-    }
-  }
-
-  // Merge menu items (this is the critical fix!)
-  if (RESTAURANT_DATA.menu && Array.isArray(RESTAURANT_DATA.menu) && RESTAURANT_DATA.menu.length > 0) {
-    CONFIG.menu = RESTAURANT_DATA.menu.map(item => ({
-      // Ensure all required properties exist with fallbacks
-      id: item.id || 0,
-      name: item.name || 'Unknown Dish',
-      nameArabic: item.nameArabic || item.name || 'طبق غير معروف',
-      category: item.category || 'General',
-      categoryArabic: item.categoryArabic || item.category || 'عام',
-      description: item.description || '',
-      descriptionArabic: item.descriptionArabic || '',
-      price: item.price || '$0',
-      priceRaw: item.priceRaw || 0,
-      ingredients: item.ingredients || [],
-      ingredientsArabic: item.ingredientsArabic || item.ingredients || [],
-      allergens: item.allergens || '',
-      allergensArabic: item.allergensArabic || '',
-      videoUrl: item.videoUrl || '',
-      image: item.image || item.dishCard || '',
-      rating: item.rating || 4.5,
-      reviews: item.reviews || 0,
-      targetIndex: item.targetIndex !== undefined ? item.targetIndex : 0
-    }));
-    console.log('[Data] Loaded', CONFIG.menu.length, 'dishes from external data');
-  }
-
-  // Merge i18n strings (Arabic support from data.js)
-  if (RESTAURANT_DATA.i18n) {
-    // Merge each language
-    Object.keys(RESTAURANT_DATA.i18n).forEach(lang => {
-      if (!CONFIG.i18n[lang]) CONFIG.i18n[lang] = {};
-      Object.assign(CONFIG.i18n[lang], RESTAURANT_DATA.i18n[lang]);
-    });
-  }
-
-  // Merge AR configuration
-  if (RESTAURANT_DATA.ar) {
-    Object.assign(CONFIG.ar, RESTAURANT_DATA.ar);
-  }
-
-  console.log('[Data] Integration complete. Restaurant:', CONFIG.restaurant.name);
 }
 
 
@@ -1155,7 +1095,7 @@ function buildParallaxScene(dish) {
     pointer.y  = -((src.clientY - rect.top)  / rect.height) * 2 + 1;
     ray.setFromCamera(pointer, camera);
     const hits = ray.intersectObjects([dishMesh, glowMesh]);
-    if (hits.length) openBlade(STATE.currentDish);
+    if (hits.length) openBlade(STATE.currentDish || dish);
   }
   overlay.addEventListener('click',      onHit);
   overlay.addEventListener('touchstart', onHit, { passive: true });
@@ -1224,32 +1164,9 @@ function buildParallaxScene(dish) {
 }
 
 /** Hot-swap the foreground dish texture (no scene rebuild needed). */
-function switchDish(dishOrIndex) {
-  let dish;
-  
-  // Handle both dish object and index
-  if (typeof dishOrIndex === 'number') {
-    STATE.currentDishIndex = dishOrIndex;
-    dish = CONFIG.menu[dishOrIndex];
-  } else if (typeof dishOrIndex === 'object') {
-    dish = dishOrIndex;
-    // Find index
-    STATE.currentDishIndex = CONFIG.menu.findIndex(d => d.id === dish.id);
-    if (STATE.currentDishIndex === -1) STATE.currentDishIndex = 0;
-  } else {
-    console.warn('[switchDish] Invalid argument:', dishOrIndex);
-    return;
-  }
-  
-  if (!dish) {
-    console.warn('[switchDish] Dish not found');
-    return;
-  }
-  
+function switchDish(dish) {
   STATE.currentDish = dish;
   if (STATE.pxCtx) STATE.pxCtx.loadDishImage(dish.image);
-  
-  console.log('[switchDish] Switched to:', dish.name, '(index:', STATE.currentDishIndex + ')');
 }
 
 
@@ -1260,44 +1177,28 @@ function switchDish(dishOrIndex) {
    The CSS then handles everything else.
 ───────────────────────────────────────────────────────────────── */
 function openBlade(dish) {
-  if (!dish) dish = STATE.currentDish;
-  if (!dish) {
-    console.warn('[openBlade] No dish available');
-    return;
-  }
-  
   STATE.bladeOpen   = true;
   STATE.currentDish = dish;
 
   /* ── Block 1: Title + Category ─────────────────────────────── */
-  el('bladeTitle').textContent    = getDishProp(dish, 'name');
-  el('bladeCategory').textContent = getDishProp(dish, 'category');
+  el('bladeTitle').textContent    = dish.name;
+  el('bladeCategory').textContent = dish.category;
 
   /* ── Block 2: Rating ────────────────────────────────────────── */
-  el('bladeStars').textContent    = '★'.repeat(Math.round(dish.rating || 4.5));
-  el('bladeScore').textContent    = (dish.rating || 4.5).toFixed(1);
+  el('bladeStars').textContent    = '★'.repeat(Math.round(dish.rating));
+  el('bladeScore').textContent    = dish.rating.toFixed(1);
   el('bladeRateCta').textContent  = t('rate_google');
-  el('googleMapsLink').href       = CONFIG.restaurant.googleMapsUrl || '#';
+  el('googleMapsLink').href       = CONFIG.restaurant.googleMapsUrl;
 
   /* ── Block 3: Price ─────────────────────────────────────────── */
-  el('bladePrice').textContent      = dish.price || '$0';
+  el('bladePrice').textContent      = dish.price;
   el('bladePriceLabel').textContent = t('price_label');
 
   /* ── Block 4: Ingredients (clean prose, no icons) ───────────── */
   el('bladeIngLabel').textContent = t('ingredients_label');
-  
-  // Use bilingual ingredients
-  const ingredients = getDishProp(dish, 'ingredients');
-  if (Array.isArray(ingredients)) {
-    el('bladeIngText').textContent = ingredients.join('  ·  ');
-  } else {
-    el('bladeIngText').textContent = ingredients || '';
-  }
-  
-  // Allergens with bilingual support
-  const allergens = getDishProp(dish, 'allergens');
-  if (allergens) {
-    el('allergenText').textContent       = allergens;
+  el('bladeIngText').textContent  = dish.ingredients.join('  ·  ');
+  if (dish.allergens) {
+    el('allergenText').textContent       = dish.allergens;
     el('allergenStrip').style.display    = 'block';
   } else {
     el('allergenStrip').style.display    = 'none';
@@ -1322,12 +1223,13 @@ function openBlade(dish) {
   document.addEventListener('touchend',   _swipeEnd,   { passive: true });
 
   track('dish_identified', { id: dish.id, name: dish.name });
-  toast(`${t('identified')}: ${getDishProp(dish, 'name')}`);
+  toast(`${t('identified')}: ${dish.name}`);
 }
 
 function closeBlade() {
   if (!STATE.bladeOpen) return;
   STATE.bladeOpen   = false;
+  STATE.currentDish = null;
 
   el('sideBlade').classList.remove('active');
   el('sideBlade').setAttribute('aria-hidden', 'true');
@@ -1363,8 +1265,10 @@ function applyLang() {
   el('hudName').textContent      = t('brand').substring(0,2).toUpperCase();
 
   if (STATE.bladeOpen && STATE.currentDish) {
-    // Refresh blade with current dish to update language
-    openBlade(STATE.currentDish);
+    el('bladeRateCta').textContent  = t('rate_google');
+    el('bladePriceLabel').textContent = t('price_label');
+    el('bladeIngLabel').textContent = t('ingredients_label');
+    el('videoCtaLabel').textContent = t('watch_video');
   }
 }
 
@@ -1408,24 +1312,19 @@ function startDemoCycle() {
   let idx = 0;
   const dishes = CONFIG.menu;
 
-  if (dishes.length === 0) {
-    console.warn('[DemoCycle] No dishes available');
-    return;
-  }
-
   // Prime first dish immediately
-  switchDish(0);
+  switchDish(dishes[0]);
   el('hudStatus').textContent = t('tracking');
 
   setInterval(() => {
     if (!STATE.started || STATE.bladeOpen) return;
     idx = (idx + 1) % dishes.length;
-    switchDish(idx);
+    switchDish(dishes[idx]);
 
     // Simulate target found after 1 s if device is tilted
     if (STATE.deviceTiltOK) {
       setTimeout(() => {
-        if (!STATE.bladeOpen) openBlade(CONFIG.menu[idx]);
+        if (!STATE.bladeOpen) openBlade(dishes[idx]);
       }, 1000);
     }
   }, 10000);
@@ -1457,11 +1356,7 @@ function startAR() {
       .catch(() => {});
   }
 
-  // Use first dish or current dish index
-  const startDish = CONFIG.menu[STATE.currentDishIndex] || CONFIG.menu[0];
-  STATE.pxCtx = buildParallaxScene(startDish);
-  STATE.currentDish = startDish;
-  
+  STATE.pxCtx = buildParallaxScene(CONFIG.menu[0]);
   if (CONFIG.ar.demoMode) startDemoCycle();
 
   track('ar_started');
@@ -1475,9 +1370,8 @@ function startAR() {
 function initLaunch() {
   applyLang();
 
-  // Use external restaurant data for branding if available
   el('launchBg').style.backgroundImage  = `url('${CONFIG.restaurant.heroImage}')`;
-  el('portalImg').style.backgroundImage = `url('${CONFIG.restaurant.portalImage || CONFIG.restaurant.heroImage}')`;
+  el('portalImg').style.backgroundImage = `url('${CONFIG.restaurant.portalImage}')`;
 
   el('portalBtn').addEventListener('click', () => {
     track('portal_tapped');
@@ -1497,11 +1391,7 @@ function initLaunch() {
   });
 
   // Info / menu corner buttons
-  el('btnInfo').addEventListener('click', () => {
-    const loc = CONFIG.restaurant.location || 'Unknown';
-    const phone = CONFIG.restaurant.phone || '';
-    toast(`📍 ${loc}  ·  📞 ${phone}`);
-  });
+  el('btnInfo').addEventListener('click', () => toast(`📍 ${CONFIG.restaurant.location}  ·  📞 ${CONFIG.restaurant.phone}`));
   el('btnMenu').addEventListener('click', () => toast('FULL MENU — Coming Soon'));
 }
 
@@ -1516,12 +1406,7 @@ el('bladeClose').addEventListener('click', closeBlade);
 // Video CTA → modal
 el('videoCta').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  const videoUrl = STATE.currentDish.videoUrl;
-  if (!videoUrl) {
-    toast('Video coming soon');
-    return;
-  }
-  el('modalVideo').src = videoUrl;
+  el('modalVideo').src = STATE.currentDish.videoUrl;
   el('videoModal').classList.add('open');
   el('modalVideo').play().catch(() => {});
   track('video_opened', { dish: STATE.currentDish.name });
@@ -1540,21 +1425,18 @@ el('videoModal').addEventListener('click', (e) => {
 // Social share
 el('shareIG').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  const dishName = getDishProp(STATE.currentDish, 'name');
-  window.open(`https://www.instagram.com/?caption=${encodeURIComponent('Discover ' + dishName + ' at ' + t('brand') + '!')}`, '_blank');
-  track('shared', { platform: 'instagram', dish: dishName });
+  window.open(`https://www.instagram.com/?caption=${encodeURIComponent('Discover ' + STATE.currentDish.name + ' at AR Gastronomy!')}`, '_blank');
+  track('shared', { platform: 'instagram', dish: STATE.currentDish.name });
 });
 el('shareWA').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  const dishName = getDishProp(STATE.currentDish, 'name');
-  window.open(`https://wa.me/?text=${encodeURIComponent(dishName + ' — ' + window.location.href)}`, '_blank');
-  track('shared', { platform: 'whatsapp', dish: dishName });
+  window.open(`https://wa.me/?text=${encodeURIComponent(STATE.currentDish.name + ' — ' + window.location.href)}`, '_blank');
+  track('shared', { platform: 'whatsapp', dish: STATE.currentDish.name });
 });
 el('shareMail').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  const dishName = getDishProp(STATE.currentDish, 'name');
-  window.open(`mailto:?subject=${encodeURIComponent('Discover ' + dishName)}&body=${encodeURIComponent(window.location.href)}`, '_blank');
-  track('shared', { platform: 'email', dish: dishName });
+  window.open(`mailto:?subject=${encodeURIComponent('Discover ' + STATE.currentDish.name)}&body=${encodeURIComponent(window.location.href)}`, '_blank');
+  track('shared', { platform: 'email', dish: STATE.currentDish.name });
 });
 
 // Keyboard shortcuts
@@ -1570,14 +1452,8 @@ window.addEventListener('keydown', (e) => {
   }
   // Dev: press 1/2/3 to trigger dishes directly
   if (['1','2','3'].includes(e.key) && STATE.started) {
-    const idx = +e.key - 1;
-    if (idx < CONFIG.menu.length) { 
-      if (STATE.bladeOpen) closeBlade(); 
-      setTimeout(() => { 
-        switchDish(idx); 
-        openBlade(CONFIG.menu[idx]); 
-      }, 120); 
-    }
+    const d = CONFIG.menu[+e.key - 1];
+    if (d) { if (STATE.bladeOpen) closeBlade(); setTimeout(() => { switchDish(d); openBlade(d); }, 120); }
   }
 });
 
@@ -1586,26 +1462,16 @@ window.addEventListener('keydown', (e) => {
    BOOT
 ───────────────────────────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
-  // ★★★ CRITICAL: Integrate external data BEFORE anything else ★★★
-  integrateExternalData();
-  
-  // Optional: pull live menu from API (overrides data.js if successful)
+  // Optional: pull live menu from API
   if (CONFIG.api.menuUrl) {
     try {
       const res = await fetch(CONFIG.api.menuUrl);
-      if (res.ok) {
-        const apiMenu = await res.json();
-        if (Array.isArray(apiMenu) && apiMenu.length > 0) {
-          CONFIG.menu = apiMenu;
-          console.log('[Data] API menu loaded:', apiMenu.length, 'items');
-        }
-      }
-    } catch { /* use data.js or defaults */ }
+      if (res.ok) CONFIG.menu = await res.json();
+    } catch { /* use defaults */ }
   }
-  
   initLaunch();
   track('app_loaded', { version: '2.0', lang: STATE.lang });
-  toast('WELCOME TO ' + t('brand').toUpperCase());
+  toast('WELCOME TO AR GASTRONOMY');
 });
 </script>
 </body>
