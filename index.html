@@ -8,23 +8,21 @@
   <meta name="theme-color" content="#050505" />
   <title>UMAMI PRIME | AR Gastronomy Portal</title>
 
-  <!-- Typefaces -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
   <!-- Three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@r128/build/three.min.js"></script>
-
-  <!-- Tesseract.js v4 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <!-- Tesseract.js -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
 
   <style>
     :root {
       --gold: #d4af37;
-      --gold-pale: #e8d48a;
       --gold-dim: rgba(212,175,55,0.10);
-      --gold-mid: rgba(212,175,55,0.22);
       --ink: #050505;
       --surface: rgba(5,5,5,0.97);
       --white: #f5f0e8;
@@ -38,7 +36,6 @@
       --s1: 5px; --s2: 8px; --s3: 13px; --s4: 21px; --s5: 34px; --s6: 55px; --s7: 89px;
       --t-2xs: 9px; --t-xs: 11px; --t-sm: 13px; --t-md: 16px; --t-lg: 21px; --t-xl: 34px; --t-2xl: 55px;
       --blade-w: calc(100vw / 1.618);
-      
       --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
       --dur-blade: 0.78s;
     }
@@ -53,7 +50,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ═══ DEBUG PANEL ═══ */
+    /* Debug Panel */
     #debugPanel {
       position: fixed;
       bottom: 0; left: 0; right: 0;
@@ -73,9 +70,9 @@
     }
     #debugPanel .log-entry.error { color: var(--danger); font-weight: bold; }
     #debugPanel .log-entry.success { color: var(--success); }
-    #debugPanel .log-entry.info { color: #4db8ff; }
+    #debugPanel .log-entry.warn { color: #ffa500; }
 
-    /* ═══ LAUNCH SCREEN ═══ */
+    /* Launch Screen */
     #launchScreen {
       position: fixed; inset: 0; z-index: 300;
       display: flex; flex-direction: column;
@@ -118,10 +115,12 @@
       position: relative; margin: var(--s5) auto 0;
       width: 190px; height: 190px;
       border-radius: 14px; overflow: hidden;
-      border: 1px solid var(--gold-mid);
+      border: 1px solid var(--gold-dim);
       cursor: pointer;
       box-shadow: 0 0 80px rgba(212,175,55,0.15);
+      transition: transform 0.4s ease;
     }
+    .portal-ring:hover { transform: scale(1.05); }
     .portal-img {
       width: 100%; height: 100%;
       background-size: cover; background-position: center;
@@ -136,7 +135,7 @@
       font-size: 72px;
     }
 
-    /* ═══ AR STACK ═══ */
+    /* AR Stack */
     #videoFeed {
       position: fixed; inset: 0; z-index: 2;
       width: 100%; height: 100%; object-fit: cover;
@@ -157,12 +156,13 @@
     }
     #arOverlay.on { display: block; }
 
-    /* ═══ HUD ═══ */
+    /* HUD */
     #hudBar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 60;
       padding: var(--s4) var(--s5);
       display: none; align-items: center; justify-content: space-between;
       background: linear-gradient(to bottom, rgba(0,0,0,0.60) 0%, transparent 100%);
+      backdrop-filter: blur(10px);
     }
     #hudBar.on { display: flex; }
     
@@ -193,7 +193,7 @@
     }
     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
 
-    /* ═══ SIDE BLADE ═══ */
+    /* Side Blade */
     #sideBlade {
       position: fixed; right: 0; top: 0; bottom: 0;
       width: var(--blade-w); max-width: 100%; z-index: 100;
@@ -215,6 +215,7 @@
       color: var(--text-lo); font-size: 18px;
       display: flex; align-items: center; justify-content: center;
     }
+    .blade-x:hover { color: var(--gold); border-color: var(--gold); }
 
     .motion-element {
       opacity: 0; transform: translateY(26px);
@@ -263,18 +264,18 @@
       color: var(--ink); cursor: pointer;
     }
 
-    /* ═══ OCR VIEWFINDER ═══ */
+    /* OCR Viewfinder */
     #ocrViewfinder {
       position: fixed; inset: 0; z-index: 5;
       pointer-events: none; display: none;
     }
     #ocrViewfinder.on { display: block; }
-    #ocrViewfinder.scanning { opacity: 1; }
     
     .ocr-scanline {
       position: absolute; left: 10%; right: 10%; height: 2px;
       background: linear-gradient(90deg, transparent, var(--success), var(--gold), var(--success), transparent);
       animation: scanSweep 2.5s linear infinite;
+      box-shadow: 0 0 10px var(--success);
     }
     @keyframes scanSweep {
       0% { top: 20%; opacity: 0; }
@@ -285,14 +286,14 @@
 
     .ocr-corner {
       position: absolute; width: 40px; height: 40px;
-      border-color: var(--gold); border-style: solid; opacity: 0.6;
+      border-color: var(--gold); border-style: solid;
     }
     .ocr-corner.tl { top: 20%; left: 10%; border-width: 3px 0 0 3px; }
     .ocr-corner.tr { top: 20%; right: 10%; border-width: 3px 3px 0 0; }
     .ocr-corner.bl { bottom: 20%; left: 10%; border-width: 0 0 3px 3px; }
     .ocr-corner.br { bottom: 20%; right: 10%; border-width: 0 3px 3px 0; }
 
-    /* ═══ TOAST ═══ */
+    /* Toast */
     #toast {
       position: fixed; bottom: 220px; left: 50%;
       transform: translateX(-50%) translateY(120px);
@@ -313,10 +314,10 @@
 </head>
 <body>
 
-<!-- ═══ DEBUG PANEL ═══ -->
+<!-- Debug Panel -->
 <div id="debugPanel"></div>
 
-<!-- ═══ LAUNCH SCREEN ═══ -->
+<!-- Launch Screen -->
 <div id="launchScreen">
   <div class="launch-bg" id="launchBg"></div>
   <div class="launch-scrim"></div>
@@ -331,12 +332,12 @@
   </div>
 </div>
 
-<!-- ═══ AR STACK ═══ -->
+<!-- AR Stack -->
 <video id="videoFeed" playsinline autoplay muted></video>
 <canvas id="parallaxCanvas"></canvas>
 <div id="arOverlay"></div>
 
-<!-- ═══ OCR VIEWFINDER ═══ -->
+<!-- OCR Viewfinder -->
 <div id="ocrViewfinder">
   <div class="ocr-scanline"></div>
   <div class="ocr-corner tl"></div>
@@ -345,19 +346,16 @@
   <div class="ocr-corner br"></div>
 </div>
 
-<!-- ═══ HUD ═══ -->
+<!-- HUD -->
 <div id="hudBar">
   <span class="hud-name">UP</span>
   <div id="ocrPill" data-status="init">
     <div class="ocr-dot"></div>
-    <span id="ocrStatus">INIT OCR</span>
-  </div>
-  <div style="color: var(--text-lo); font-size: 10px;">
-    <span id="hudStatus">READY</span>
+    <span id="ocrStatus">INIT</span>
   </div>
 </div>
 
-<!-- ═══ SIDE BLADE ═══ -->
+<!-- Side Blade -->
 <aside id="sideBlade">
   <button class="blade-x" id="bladeClose">✕</button>
   
@@ -371,14 +369,13 @@
       <span style="color: var(--gold); font-size: 20px;">★★★★★</span>
       <div>
         <div style="color: var(--white); font-size: 18px; font-weight: 600;" id="bladeScore">4.9</div>
-        <div style="font-size: 10px; color: var(--text-lo);">Google Maps</div>
       </div>
     </div>
   </div>
 
   <div class="blade-block motion-element delay-3">
     <span class="price-amount" id="bladePrice">—</span>
-    <span style="font-size: 11px; color: var(--text-lo); letter-spacing: 2px; display: block; margin-top: 5px;">PER PERSON</span>
+    <span style="font-size: 11px; color: var(--text-lo); display: block; margin-top: 5px;">PER PERSON</span>
   </div>
 
   <div class="blade-block motion-element delay-4">
@@ -394,12 +391,9 @@
 <div id="toast"></div>
 
 <script>
-/* ═════════════════════════════════════════════════════════════
-   CONFIGURATION
-═════════════════════════════════════════════════════════════ */
+/* Configuration */
 const CONFIG = {
   restaurant: {
-    name: 'UMAMI PRIME',
     heroImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1200&q=85',
     portalImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=85'
   },
@@ -441,12 +435,11 @@ const STATE = {
   started: false,
   bladeOpen: false,
   currentDish: null,
-  ocrReady: false
+  ocrReady: false,
+  libsLoaded: false
 };
 
-/* ═════════════════════════════════════════════════════════════
-   DEBUG SYSTEM
-═════════════════════════════════════════════════════════════ */
+/* Debug System */
 const Debug = {
   panel: document.getElementById('debugPanel'),
   
@@ -470,74 +463,98 @@ function toast(msg, duration = 3000) {
   setTimeout(() => t.classList.remove('show'), duration);
 }
 
-/* ═════════════════════════════════════════════════════════════
-   THREE.JS PARALLAX
-═════════════════════════════════════════════════════════════ */
+/* Check Libraries */
+function checkLibraries() {
+  const threeLoaded = typeof THREE !== 'undefined';
+  const tesseractLoaded = typeof Tesseract !== 'undefined';
+  
+  Debug.log(`Libraries check - THREE: ${threeLoaded}, Tesseract: ${tesseractLoaded}`, threeLoaded && tesseractLoaded ? 'success' : 'warn');
+  
+  STATE.libsLoaded = threeLoaded && tesseractLoaded;
+  return STATE.libsLoaded;
+}
+
+/* Three.js Parallax */
 let parallaxCtx = null;
 
 function initParallax() {
-  const canvas = el('parallaxCanvas');
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.01, 100);
-  camera.position.z = 2.4;
-
-  const group = new THREE.Group();
-  scene.add(group);
-
-  // Glow
-  const glow = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.4, 2.4),
-    new THREE.MeshBasicMaterial({ color: 0xd4af37, transparent: true, opacity: 0.3 })
-  );
-  glow.position.z = -0.2;
-  group.add(glow);
-
-  // Dish
-  const dishMat = new THREE.MeshBasicMaterial({ transparent: true });
-  const dish = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), dishMat);
-  group.add(dish);
-
-  // Raycaster
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-
-  el('arOverlay').addEventListener('click', (e) => {
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    if (raycaster.intersectObject(dish).length > 0 && STATE.currentDish) {
-      openBlade(STATE.currentDish);
+  try {
+    if (typeof THREE === 'undefined') {
+      throw new Error('THREE is not defined - Library not loaded');
     }
-  });
+    
+    const canvas = el('parallaxCanvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.01, 100);
+    camera.position.z = 2.4;
 
-  function animate() {
-    requestAnimationFrame(animate);
-    glow.rotation.z += 0.002;
-    renderer.render(scene, camera);
+    const group = new THREE.Group();
+    scene.add(group);
+
+    // Glow
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 2.4),
+      new THREE.MeshBasicMaterial({ color: 0xd4af37, transparent: true, opacity: 0.3 })
+    );
+    glow.position.z = -0.2;
+    group.add(glow);
+
+    // Dish
+    const dishMat = new THREE.MeshBasicMaterial({ transparent: true });
+    const dish = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), dishMat);
+    group.add(dish);
+
+    // Raycaster
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    el('arOverlay').addEventListener('click', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      if (raycaster.intersectObject(dish).length > 0 && STATE.currentDish) {
+        openBlade(STATE.currentDish);
+      }
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      glow.rotation.z += 0.002;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    Debug.log('Three.js parallax initialized', 'success');
+    return { renderer, dishMat };
+    
+  } catch (err) {
+    Debug.log(`Parallax Error: ${err.message}`, 'error');
+    throw err;
   }
-  animate();
-
-  return { renderer, dishMat };
 }
 
 function switchDish(dish) {
   STATE.currentDish = dish;
   if (!parallaxCtx) return;
   
-  const loader = new THREE.TextureLoader();
-  loader.crossOrigin = 'anonymous';
-  loader.load(dish.image, (tex) => {
-    parallaxCtx.dishMat.map = tex;
-    parallaxCtx.dishMat.needsUpdate = true;
-  });
+  try {
+    const loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous';
+    loader.load(dish.image, (tex) => {
+      parallaxCtx.dishMat.map = tex;
+      parallaxCtx.dishMat.needsUpdate = true;
+    }, undefined, (err) => {
+      Debug.log(`Texture load error: ${err.message}`, 'error');
+    });
+  } catch (err) {
+    Debug.log(`Switch dish error: ${err.message}`, 'error');
+  }
 }
 
-/* ═════════════════════════════════════════════════════════════
-   SIDE BLADE
-═════════════════════════════════════════════════════════════ */
+/* Side Blade */
 function openBlade(dish) {
   if (!dish || STATE.bladeOpen) return;
   STATE.bladeOpen = true;
@@ -550,7 +567,7 @@ function openBlade(dish) {
   
   el('sideBlade').classList.add('active');
   el('ocrPill').dataset.status = 'locked';
-  el('ocrStatus').textContent = 'DISH FOUND';
+  el('ocrStatus').textContent = 'LOCKED';
   
   toast(`✓ IDENTIFIED: ${dish.name}`);
   Debug.log(`Blade opened: ${dish.name}`, 'success');
@@ -560,58 +577,45 @@ function closeBlade() {
   STATE.bladeOpen = false;
   el('sideBlade').classList.remove('active');
   el('ocrPill').dataset.status = 'ready';
-  el('ocrStatus').textContent = 'OCR READY';
-  Debug.log('Blade closed', 'info');
+  el('ocrStatus').textContent = 'READY';
 }
 
 el('bladeClose').addEventListener('click', closeBlade);
 
-/* ═════════════════════════════════════════════════════════════
-   TESSERACT OCR — FIXED WITH EXPLICIT CDN PATHS
-═════════════════════════════════════════════════════════════ */
+/* Tesseract OCR */
 let tesseractWorker = null;
 let ocrInterval = null;
 
 async function initOCR() {
-  Debug.log('Starting OCR initialization...', 'info');
+  Debug.log('Initializing OCR...', 'info');
   el('ocrStatus').textContent = 'LOADING...';
   
   try {
-    // CRITICAL FIX: Explicit CDN paths for GitHub Pages compatibility
-    Debug.log('Creating worker with explicit CDN paths...', 'info');
-    
     tesseractWorker = await Tesseract.createWorker({
       langPath: 'https://tessdata.projectnaptha.com/4.0.0',
       workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@v4.0.2/dist/worker.min.js',
       corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@v4.0.1/tesseract-core.wasm.js',
       logger: m => {
-        Debug.log(`Tesseract: ${m.status} (${Math.round(m.progress * 100)}%)`, 'info');
+        if (m.status === 'recognizing text') {
+          Debug.log(`OCR: ${Math.round(m.progress * 100)}%`, 'info');
+        }
       }
     });
 
-    Debug.log('Worker created, loading languages...', 'info');
-    
-    // Initialize languages
     await tesseractWorker.loadLanguage('eng+ara');
-    Debug.log('Languages loaded', 'success');
-    
     await tesseractWorker.initialize('eng+ara');
-    Debug.log('Worker initialized successfully', 'success');
     
     STATE.ocrReady = true;
     el('ocrPill').dataset.status = 'ready';
-    el('ocrStatus').textContent = 'OCR READY';
-    
-    // Show viewfinder
+    el('ocrStatus').textContent = 'READY';
     el('ocrViewfinder').classList.add('on');
-    Debug.log('OCR System Ready', 'success');
+    
+    Debug.log('OCR Ready', 'success');
     
   } catch (err) {
-    Debug.log(`OCR Init Error: ${err.message || err}`, 'error');
-    console.error('Tesseract Error:', err);
+    Debug.log(`OCR Error: ${err.message}`, 'error');
     el('ocrPill').dataset.status = 'error';
     el('ocrStatus').textContent = 'ERROR';
-    toast('OCR Failed - Check Debug Log');
   }
 }
 
@@ -619,55 +623,41 @@ async function runOCRScan() {
   if (!STATE.ocrReady || !STATE.started || STATE.bladeOpen) return;
   
   const video = document.querySelector('video');
-  if (!video || !video.srcObject || video.readyState < 2) {
-    return;
-  }
+  if (!video || !video.srcObject || video.readyState < 2) return;
 
   try {
     el('ocrPill').dataset.status = 'scanning';
-    el('ocrStatus').textContent = 'SCANNING...';
-    Debug.log('Starting OCR scan...', 'info');
+    el('ocrStatus').textContent = 'SCANNING';
     
-    // Capture frame
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
     
-    Debug.log(`Frame captured: ${canvas.width}x${canvas.height}`, 'info');
-    
     const result = await tesseractWorker.recognize(canvas);
     const text = result.data.text;
-    const confidence = result.data.confidence;
     
-    Debug.log(`OCR Result: "${text.substring(0, 40)}..." (conf: ${confidence})`, 'info');
-    
-    if (confidence > 30 && text.length > 3) {
+    if (result.data.confidence > 30 && text.length > 3) {
       checkTextAgainstMenu(text);
     } else {
       el('ocrPill').dataset.status = 'ready';
-      el('ocrStatus').textContent = 'OCR READY';
+      el('ocrStatus').textContent = 'READY';
     }
     
   } catch (err) {
-    Debug.log(`Scan Error: ${err.message || err}`, 'error');
+    Debug.log(`Scan error: ${err.message}`, 'error');
     el('ocrPill').dataset.status = 'error';
-    el('ocrStatus').textContent = 'ERROR';
   }
 }
 
 function checkTextAgainstMenu(text) {
   const normalized = text.toLowerCase();
-  Debug.log(`Checking text: ${normalized.substring(0, 50)}...`, 'info');
   
   for (const dish of CONFIG.menu) {
-    const dishName = dish.name.toLowerCase();
-    const keywords = dishName.split(' ');
-    
+    const keywords = dish.name.toLowerCase().split(' ');
     for (const keyword of keywords) {
       if (keyword.length > 3 && normalized.includes(keyword)) {
-        Debug.log(`MATCH FOUND: ${dish.name} (keyword: ${keyword})`, 'success');
         switchDish(dish);
         openBlade(dish);
         return;
@@ -676,64 +666,75 @@ function checkTextAgainstMenu(text) {
   }
   
   el('ocrPill').dataset.status = 'ready';
-  el('ocrStatus').textContent = 'OCR READY';
+  el('ocrStatus').textContent = 'READY';
 }
 
 function startOCRLoop() {
   if (ocrInterval) clearInterval(ocrInterval);
   ocrInterval = setInterval(runOCRScan, 3000);
-  Debug.log('OCR loop started (3s interval)', 'success');
+  Debug.log('OCR loop started', 'success');
 }
 
-/* ═════════════════════════════════════════════════════════════
-   AR INITIALIZATION
-═════════════════════════════════════════════════════════════ */
+/* AR Initialization */
 function initAR() {
-  Debug.log('Initializing AR...', 'info');
+  Debug.log('Starting AR...', 'info');
   
-  document.body.dataset.ocrStatus = 'ready';
+  // CRITICAL: Check libraries first
+  if (!checkLibraries()) {
+    Debug.log('Required libraries not loaded. Retrying in 1s...', 'warn');
+    toast('Loading libraries... Please wait');
+    setTimeout(initAR, 1000);
+    return;
+  }
+  
+  if (typeof THREE === 'undefined') {
+    Debug.log('THREE.js not available', 'error');
+    toast('Error: 3D Engine not loaded');
+    return;
+  }
+  
   el('launchScreen').classList.add('hidden');
   el('videoFeed').classList.add('on');
   el('parallaxCanvas').classList.add('on');
   el('arOverlay').classList.add('on');
   el('hudBar').classList.add('on');
   
-  // Start camera
   navigator.mediaDevices?.getUserMedia({ 
     video: { facingMode: 'environment' }, 
     audio: false 
   }).then(stream => {
     const video = el('videoFeed');
     video.srcObject = stream;
-    Debug.log('Camera access granted', 'success');
+    Debug.log('Camera active', 'success');
     
-    parallaxCtx = initParallax();
-    switchDish(CONFIG.menu[0]);
+    // Initialize Three.js
+    try {
+      parallaxCtx = initParallax();
+      switchDish(CONFIG.menu[0]);
+    } catch (err) {
+      Debug.log(`3D init failed: ${err.message}`, 'error');
+      toast('3D Error - Check Debug');
+      return;
+    }
     
     video.onloadedmetadata = () => {
-      Debug.log('Video metadata loaded, starting OCR...', 'info');
+      Debug.log('Video ready', 'success');
       initOCR().then(() => {
-        if (STATE.ocrReady) {
-          startOCRLoop();
-        }
+        if (STATE.ocrReady) startOCRLoop();
       });
     };
     
   }).catch(err => {
     Debug.log(`Camera error: ${err.message}`, 'error');
-    toast('Camera access required');
+    toast('Camera access denied');
   });
 }
 
 el('portalBtn').addEventListener('click', initAR);
 
-/* ═════════════════════════════════════════════════════════════
-   EVENT HANDLERS
-═════════════════════════════════════════════════════════════ */
+/* Video CTA */
 el('videoCta').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  
-  // Create modal dynamically
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;padding:20px;';
   modal.innerHTML = `
@@ -750,13 +751,14 @@ window.addEventListener('keydown', (e) => {
   if (e.key === ' ' && !STATE.started) initAR();
 });
 
-/* ═════════════════════════════════════════════════════════════
-   BOOT
-═════════════════════════════════════════════════════════════ */
+/* Boot */
 window.addEventListener('DOMContentLoaded', () => {
-  Debug.log('App loaded, waiting for user...', 'info');
+  Debug.log('App started', 'success');
   el('launchBg').style.backgroundImage = `url(${CONFIG.restaurant.heroImage})`;
   el('portalImg').style.backgroundImage = `url(${CONFIG.restaurant.portalImage})`;
+  
+  // Initial library check
+  setTimeout(checkLibraries, 500);
 });
 </script>
 </body>
