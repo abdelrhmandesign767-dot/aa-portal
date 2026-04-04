@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#050505" />
-  <title>AR Gastronomy | Premium Dining</title>
+  <title>UMAMI PRIME | AR Gastronomy Portal</title>
 
   <!-- Typefaces: Cormorant Garamond (display) + DM Sans (body) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -16,7 +16,12 @@
   <!-- Three.js (r128 — same version as original) -->
   <script src="https://cdn.jsdelivr.net/npm/three@r128/build/three.min.js"></script>
 
-  <!-- NOTE: MindAR script kept for production integration. -->
+  <!-- Tesseract.js v4 — OCR engine for dish name recognition (eng + ara) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <!-- NOTE: MindAR script kept for production integration.
+       In demo mode the AR cycle uses a JS timer instead of .mind anchors.
+       Swap initDemoCycle() with real anchor callbacks when deploying. -->
   <!-- <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script> -->
 
   <style>
@@ -25,6 +30,7 @@
        Gold-on-black luxury. Every size from the φ scale (×1.618).
     ═══════════════════════════════════════════════════════════════ */
     :root {
+      /* Palette */
       --gold:          #d4af37;
       --gold-pale:     #e8d48a;
       --gold-dim:      rgba(212,175,55,0.10);
@@ -41,109 +47,591 @@
       --danger:        #e05a5a;
       --border-hair:   rgba(212,175,55,0.18);
       --border-mid:    rgba(212,175,55,0.30);
+
+      /* φ Spacing */
       --s1:  5px;   --s2:  8px;   --s3: 13px;
       --s4: 21px;   --s5: 34px;   --s6: 55px;  --s7: 89px;
+
+      /* φ Type scale */
       --t-2xs: 9px;  --t-xs: 11px; --t-sm: 13px;
       --t-md:  16px; --t-lg: 21px; --t-xl: 34px;
       --t-2xl: 55px; --t-3xl: 89px;
+
+      /* Golden-ratio blade width */
       --blade-w: calc(100vw / 1.618);
+
+      /* Easing library */
       --ease-out-expo:   cubic-bezier(0.16, 1, 0.3, 1);
       --ease-out-quart:  cubic-bezier(0.25, 0.46, 0.45, 0.94);
       --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
       --ease-in-out:     cubic-bezier(0.65, 0, 0.35, 1);
+
+      /* Durations */
       --dur-blade: 0.78s;
       --dur-block: 0.60s;
     }
 
+    /* ─── Reset ────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: var(--ink); font-family: 'DM Sans', sans-serif; color: var(--text-hi); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
-    body::after { content: ''; position: fixed; inset: 0; z-index: 9999; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); background-repeat: repeat; background-size: 128px 128px; pointer-events: none; opacity: 0.55; }
 
-    #launchScreen { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: var(--ink); transition: opacity 1s var(--ease-out-expo), visibility 1s var(--ease-out-expo); }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--ink);
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text-hi);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ─── Grain overlay (subtle film texture across entire UI) ─── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 9999;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 128px 128px;
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+
+    /* ═══════════════════════════════════════════════════════════════
+       LAUNCH SCREEN
+    ═══════════════════════════════════════════════════════════════ */
+    #launchScreen {
+      position: fixed; inset: 0; z-index: 300;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      overflow: hidden; background: var(--ink);
+      transition: opacity 1s var(--ease-out-expo),
+                  visibility 1s var(--ease-out-expo);
+    }
     #launchScreen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-    .launch-bg { position: absolute; inset: -8%; background-size: cover; background-position: center; filter: blur(14px) brightness(0.4); z-index: 0; will-change: transform; }
-    .launch-scrim { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 80% at 50% 60%, rgba(5,5,5,0.35) 0%, rgba(5,5,5,0.88) 100%); z-index: 1; }
-    .launch-body { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: var(--s5); text-align: center; padding: var(--s5); }
-    .launch-wordmark { font-family: 'Cormorant Garamond', serif; font-size: var(--t-xl); font-weight: 700; letter-spacing: 14px; color: var(--gold); text-transform: uppercase; animation: riseIn 1.1s var(--ease-out-expo) both; }
-    .launch-tagline { font-family: 'Cormorant Garamond', serif; font-size: var(--t-lg); font-weight: 300; font-style: italic; color: var(--white); letter-spacing: 2px; animation: riseIn 1.2s var(--ease-out-expo) 0.1s both; }
-    .launch-sub { font-size: var(--t-2xs); color: var(--text-lo); letter-spacing: 5px; text-transform: uppercase; animation: riseIn 1.3s var(--ease-out-expo) 0.2s both; }
-    .portal-ring { position: relative; margin-top: var(--s4); width: 190px; height: 190px; border-radius: 14px; overflow: hidden; border: 1px solid var(--gold-mid); cursor: pointer; box-shadow: 0 0 0 1px rgba(212,175,55,0.08), 0 20px 60px rgba(0,0,0,0.7), 0 0 80px rgba(212,175,55,0.15); animation: portalBreath 3.5s ease-in-out infinite, riseIn 1.4s var(--ease-out-expo) 0.3s both; transition: box-shadow 0.3s ease, transform 0.4s var(--ease-spring); }
-    .portal-ring:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 0 0 1px var(--gold-mid), 0 30px 80px rgba(0,0,0,0.8), 0 0 120px rgba(212,175,55,0.3); }
-    .portal-img { width: 100%; height: 100%; background-size: cover; background-position: center; transition: transform 0.6s var(--ease-out-expo); }
+
+    .launch-bg {
+      position: absolute; inset: -8%;
+      background-size: cover; background-position: center;
+      filter: blur(14px) brightness(0.4);
+      z-index: 0; will-change: transform;
+    }
+    .launch-scrim {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 80% at 50% 60%,
+                  rgba(5,5,5,0.35) 0%, rgba(5,5,5,0.88) 100%);
+      z-index: 1;
+    }
+    .launch-body {
+      position: relative; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; gap: var(--s5);
+      text-align: center; padding: var(--s5);
+    }
+
+    /* Wordmark */
+    .launch-wordmark {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: var(--t-xl); font-weight: 700;
+      letter-spacing: 14px; color: var(--gold);
+      text-transform: uppercase;
+      animation: riseIn 1.1s var(--ease-out-expo) both;
+    }
+    .launch-tagline {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: var(--t-lg); font-weight: 300; font-style: italic;
+      color: var(--white); letter-spacing: 2px;
+      animation: riseIn 1.2s var(--ease-out-expo) 0.1s both;
+    }
+    .launch-sub {
+      font-size: var(--t-2xs); color: var(--text-lo);
+      letter-spacing: 5px; text-transform: uppercase;
+      animation: riseIn 1.3s var(--ease-out-expo) 0.2s both;
+    }
+
+    /* Portal CTA */
+    .portal-ring {
+      position: relative; margin-top: var(--s4);
+      width: 190px; height: 190px;
+      border-radius: 14px; overflow: hidden;
+      border: 1px solid var(--gold-mid); cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(212,175,55,0.08),
+                  0 20px 60px rgba(0,0,0,0.7),
+                  0 0 80px rgba(212,175,55,0.15);
+      animation: portalBreath 3.5s ease-in-out infinite,
+                 riseIn 1.4s var(--ease-out-expo) 0.3s both;
+      transition: box-shadow 0.3s ease, transform 0.4s var(--ease-spring);
+    }
+    .portal-ring:hover {
+      transform: translateY(-5px) scale(1.02);
+      box-shadow: 0 0 0 1px var(--gold-mid),
+                  0 30px 80px rgba(0,0,0,0.8),
+                  0 0 120px rgba(212,175,55,0.3);
+    }
+    .portal-img {
+      width: 100%; height: 100%;
+      background-size: cover; background-position: center;
+      transition: transform 0.6s var(--ease-out-expo);
+    }
     .portal-ring:hover .portal-img { transform: scale(1.08); }
-    .portal-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.28); transition: opacity 0.3s ease; }
+    .portal-scrim {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.28);
+      transition: opacity 0.3s ease;
+    }
     .portal-ring:hover .portal-scrim { opacity: 0; }
-    .portal-icon { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 72px; }
-    @keyframes portalBreath { 0%,100% { box-shadow: 0 0 0 1px rgba(212,175,55,0.08), 0 20px 60px rgba(0,0,0,0.7), 0 0 80px rgba(212,175,55,0.15); } 50% { box-shadow: 0 0 0 1px rgba(212,175,55,0.18), 0 24px 70px rgba(0,0,0,0.7), 0 0 130px rgba(212,175,55,0.30); } }
-    .hud-corner { position: absolute; z-index: 15; width: 42px; height: 42px; background: rgba(255,255,255,0.06); backdrop-filter: blur(20px) saturate(1.2); border: 1px solid var(--border-hair); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s var(--ease-spring); }
-    .hud-corner:hover { background: rgba(212,175,55,0.18); border-color: var(--gold-mid); transform: scale(1.12); }
-    .hud-corner svg { width: 18px; height: 18px; stroke: var(--text-mid); stroke-width: 1.5; fill: none; transition: stroke 0.2s ease; }
+    .portal-icon {
+      position: absolute; inset: 0; z-index: 2;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 72px;
+    }
+    @keyframes portalBreath {
+      0%,100% { box-shadow: 0 0 0 1px rgba(212,175,55,0.08), 0 20px 60px rgba(0,0,0,0.7), 0 0  80px rgba(212,175,55,0.15); }
+      50%      { box-shadow: 0 0 0 1px rgba(212,175,55,0.18), 0 24px 70px rgba(0,0,0,0.7), 0 0 130px rgba(212,175,55,0.30); }
+    }
+
+    /* HUD corner buttons */
+    .hud-corner {
+      position: absolute; z-index: 15;
+      width: 42px; height: 42px;
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(20px) saturate(1.2);
+      border: 1px solid var(--border-hair);
+      border-radius: 50%; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s var(--ease-spring);
+    }
+    .hud-corner:hover {
+      background: rgba(212,175,55,0.18);
+      border-color: var(--gold-mid);
+      transform: scale(1.12);
+    }
+    .hud-corner svg {
+      width: 18px; height: 18px;
+      stroke: var(--text-mid); stroke-width: 1.5;
+      fill: none; transition: stroke 0.2s ease;
+    }
     .hud-corner:hover svg { stroke: var(--gold); }
     .corner-tl { top: var(--s5); left: var(--s5); }
     .corner-tr { top: var(--s5); right: var(--s5); }
-    .lang-pill { position: absolute; bottom: var(--s5); right: var(--s5); display: flex; gap: 2px; background: rgba(0,0,0,0.55); border: 1px solid var(--border-hair); border-radius: 24px; padding: 3px 5px; z-index: 15; }
-    .lang-opt { padding: 4px 10px; border-radius: 18px; font-size: var(--t-2xs); font-weight: 500; letter-spacing: 1px; cursor: pointer; color: var(--text-lo); transition: background 0.2s ease, color 0.2s ease; }
-    .lang-opt.active, .lang-opt:hover { background: var(--gold); color: var(--ink); }
-    #videoFeed { position: fixed; inset: 0; z-index: 2; width: 100%; height: 100%; object-fit: cover; display: none; }
+
+    /* Language pill */
+    .lang-pill {
+      position: absolute; bottom: var(--s5); right: var(--s5);
+      display: flex; gap: 2px;
+      background: rgba(0,0,0,0.55);
+      border: 1px solid var(--border-hair);
+      border-radius: 24px; padding: 3px 5px;
+      z-index: 15;
+    }
+    .lang-opt {
+      padding: 4px 10px; border-radius: 18px;
+      font-size: var(--t-2xs); font-weight: 500;
+      letter-spacing: 1px; cursor: pointer;
+      color: var(--text-lo);
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    .lang-opt.active,
+    .lang-opt:hover { background: var(--gold); color: var(--ink); }
+
+
+    /* ═══════════════════════════════════════════════════════════════
+       AR VIEWPORT STACK
+       z2: camera video (environment)
+       z3: Three.js canvas (parallax render — transparent bg)
+       z4: invisible pointer-events target
+       z60: HUD overlay
+    ═══════════════════════════════════════════════════════════════ */
+    #videoFeed {
+      position: fixed; inset: 0; z-index: 2;
+      width: 100%; height: 100%; object-fit: cover;
+      display: none;
+    }
     #videoFeed.on { display: block; }
-    #parallaxCanvas { position: fixed; inset: 0; z-index: 3; width: 100%; height: 100%; display: none; pointer-events: none; }
+
+    #parallaxCanvas {
+      position: fixed; inset: 0; z-index: 3;
+      width: 100%; height: 100%;
+      display: none; pointer-events: none;
+    }
     #parallaxCanvas.on { display: block; }
-    #arOverlay { position: fixed; inset: 0; z-index: 4; display: none; cursor: crosshair; }
+
+    /* Invisible div that catches clicks and forwards to Raycaster */
+    #arOverlay {
+      position: fixed; inset: 0; z-index: 4;
+      display: none; cursor: crosshair;
+    }
     #arOverlay.on { display: block; }
-    #hudBar { position: fixed; top: 0; left: 0; right: 0; z-index: 60; padding: var(--s4) var(--s5); display: none; align-items: center; justify-content: space-between; background: linear-gradient(to bottom, rgba(0,0,0,0.60) 0%, transparent 100%); backdrop-filter: blur(12px); font-size: var(--t-2xs); letter-spacing: 2.5px; text-transform: uppercase; }
+
+    /* ─── HUD bar ──────────────────────────────────────────────── */
+    #hudBar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+      padding: var(--s4) var(--s5);
+      display: none; align-items: center; justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.60) 0%, transparent 100%);
+      backdrop-filter: blur(12px);
+      font-size: var(--t-2xs); letter-spacing: 2.5px; text-transform: uppercase;
+    }
     #hudBar.on { display: flex; }
-    .hud-name { font-family: 'Cormorant Garamond', serif; font-size: var(--t-sm); font-weight: 600; letter-spacing: 4px; color: var(--gold); }
-    .hud-status-pill { display: flex; align-items: center; gap: var(--s2); color: var(--text-lo); }
-    .hud-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--success); box-shadow: 0 0 7px var(--success); animation: dotPulse 2s ease-in-out infinite; }
+    .hud-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: var(--t-sm); font-weight: 600;
+      letter-spacing: 4px; color: var(--gold);
+    }
+    .hud-status-pill {
+      display: flex; align-items: center; gap: var(--s2);
+      color: var(--text-lo);
+    }
+    .hud-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 7px var(--success);
+      animation: dotPulse 2s ease-in-out infinite;
+    }
     @keyframes dotPulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
-    #sideBlade { position: fixed; right: 0; top: 0; bottom: 0; width: var(--blade-w); max-width: 100%; z-index: 100; background: var(--surface); border-left: 1px solid var(--border-hair); box-shadow: inset 2px 0 0 0 rgba(212,175,55,0.12), -20px 0 80px rgba(0,0,0,0.6); overflow-y: auto; overflow-x: hidden; padding: var(--s7) var(--s5) var(--s6) var(--s5); display: flex; flex-direction: column; gap: 0; transform: translateX(105%); transition: transform var(--dur-blade) var(--ease-out-expo); will-change: transform; }
+
+    /* ─── OCR Status Pill (primary trigger indicator) ──────────── */
+    #ocrPill {
+      display: flex; align-items: center; gap: var(--s2);
+      padding: 4px 10px;
+      background: rgba(0,0,0,0.55);
+      border: 1px solid var(--border-hair);
+      border-radius: 20px;
+      font-size: var(--t-2xs); letter-spacing: 2px;
+      color: var(--text-lo);
+      transition: border-color 0.3s ease, color 0.3s ease, background 0.3s ease;
+    }
+    #ocrPill[data-status="ready"]    { border-color: var(--border-mid); color: var(--text-lo); }
+    #ocrPill[data-status="scanning"] { border-color: rgba(77,184,122,0.4); color: rgba(77,184,122,0.9); }
+    #ocrPill[data-status="locked"]   { border-color: var(--gold-mid); color: var(--gold); background: var(--gold-dim); }
+    #ocrPill[data-status="error"]    { border-color: rgba(224,90,90,0.4); color: rgba(224,130,130,0.8); }
+    #ocrPill[data-status="init"]     { border-color: var(--border-hair); color: var(--text-lo); }
+
+    .ocr-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: currentColor;
+      animation: ocrPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes ocrPulse { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:0.4; transform:scale(0.7);} }
+    #ocrPill[data-status="locked"] .ocr-dot { animation: none; opacity: 1; }
+    #ocrPill[data-status="error"]  .ocr-dot { animation: none; opacity: 0.7; }
+
+    /* ─── OCR Viewfinder overlay (subtle scan line while AR is active) */
+    #ocrViewfinder {
+      position: fixed; inset: 0; z-index: 5;
+      pointer-events: none;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #ocrViewfinder.on { display: block; }
+    #ocrViewfinder.scanning { opacity: 1; }
+
+    .ocr-scanline {
+      position: absolute;
+      left: 10%; right: 10%;
+      height: 2px;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(77,184,122,0.6) 20%,
+        rgba(212,175,55,0.9) 50%,
+        rgba(77,184,122,0.6) 80%,
+        transparent 100%);
+      border-radius: 1px;
+      animation: scanSweep 2.5s linear infinite;
+      box-shadow: 0 0 12px rgba(212,175,55,0.5);
+    }
+    @keyframes scanSweep {
+      0%   { top: 15%; opacity: 0; }
+      8%   { opacity: 1; }
+      92%  { opacity: 1; }
+      100% { top: 85%; opacity: 0; }
+    }
+
+    .ocr-corner {
+      position: absolute;
+      width: 28px; height: 28px;
+      border-color: var(--gold);
+      border-style: solid;
+      opacity: 0.55;
+    }
+    .ocr-corner.tl { top: 14%; left: 9%; border-width: 2px 0 0 2px; }
+    .ocr-corner.tr { top: 14%; right: 9%; border-width: 2px 2px 0 0; }
+    .ocr-corner.bl { bottom: 14%; left: 9%; border-width: 0 0 2px 2px; }
+    .ocr-corner.br { bottom: 14%; right: 9%; border-width: 0 2px 2px 0; }
+
+
+    /* ═══════════════════════════════════════════════════════════════
+       ★ SIDE BLADE — Luxury Motion Graphics Panel
+    ═══════════════════════════════════════════════════════════════ */
+    #sideBlade {
+      position: fixed; right: 0; top: 0; bottom: 0;
+      width: var(--blade-w); max-width: 100%; z-index: 100;
+      background: var(--surface);
+      border-left: 1px solid var(--border-hair);
+      box-shadow: inset 2px 0 0 0 rgba(212,175,55,0.12),
+                  -20px 0 80px rgba(0,0,0,0.6);
+      overflow-y: auto; overflow-x: hidden;
+      padding: var(--s7) var(--s5) var(--s6) var(--s5);
+      display: flex; flex-direction: column; gap: 0;
+      transform: translateX(105%);
+      transition: transform var(--dur-blade) var(--ease-out-expo);
+      will-change: transform;
+    }
     #sideBlade.active { transform: translateX(0); }
+
     #sideBlade::-webkit-scrollbar { width: 3px; }
     #sideBlade::-webkit-scrollbar-thumb { background: var(--border-hair); border-radius: 2px; }
-    .blade-x { position: absolute; top: var(--s4); right: var(--s4); width: 34px; height: 34px; background: transparent; border: 1px solid var(--border-hair); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-lo); font-size: 18px; transition: color 0.2s ease, border-color 0.2s ease, transform 0.3s var(--ease-spring), background 0.2s ease; }
-    .blade-x:hover { color: var(--gold); border-color: var(--gold-mid); background: var(--gold-dim); transform: rotate(90deg); }
-    .motion-element { opacity: 0; transform: translateY(26px); transition: opacity var(--dur-block) var(--ease-out-expo), transform var(--dur-block) var(--ease-out-expo); will-change: opacity, transform; }
-    #sideBlade.active .motion-element { opacity: 1; transform: translateY(0); }
-    .delay-1 { transition-delay: 0.10s; } .delay-2 { transition-delay: 0.22s; } .delay-3 { transition-delay: 0.34s; } .delay-4 { transition-delay: 0.46s; } .delay-5 { transition-delay: 0.58s; }
-    #sideBlade:not(.active) .motion-element { transition-delay: 0s !important; }
+
+    /* Close button */
+    .blade-x {
+      position: absolute; top: var(--s4); right: var(--s4);
+      width: 34px; height: 34px;
+      background: transparent; border: 1px solid var(--border-hair);
+      border-radius: 50%; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-lo); font-size: 18px;
+      transition: color 0.2s ease, border-color 0.2s ease,
+                  transform 0.3s var(--ease-spring), background 0.2s ease;
+    }
+    .blade-x:hover {
+      color: var(--gold); border-color: var(--gold-mid);
+      background: var(--gold-dim); transform: rotate(90deg);
+    }
+
+    /* ─── motion-element BASE STATE (hidden) ───────────────────── */
+    .motion-element {
+      opacity: 0;
+      transform: translateY(26px);
+      transition:
+        opacity  var(--dur-block) var(--ease-out-expo),
+        transform var(--dur-block) var(--ease-out-expo);
+      will-change: opacity, transform;
+    }
+
+    /* When blade gets .active → children cascade in */
+    #sideBlade.active .motion-element {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ★ Staggered delay classes */
+    .delay-1 { transition-delay: 0.10s; }
+    .delay-2 { transition-delay: 0.22s; }
+    .delay-3 { transition-delay: 0.34s; }
+    .delay-4 { transition-delay: 0.46s; }
+    .delay-5 { transition-delay: 0.58s; }
+
+    /* When blade closes, blocks snap back (no delay on exit) */
+    #sideBlade:not(.active) .motion-element {
+      transition-delay: 0s !important;
+    }
+
+    /* ─── BLOCK 1: Title + Category ────────────────────────────── */
     .blade-block { width: 100%; }
-    .blade-title { font-family: 'Cormorant Garamond', serif; font-size: var(--t-xl); font-weight: 700; color: var(--white); letter-spacing: 0.5px; line-height: 1.1; }
-    .blade-category { display: block; margin-top: var(--s2); font-size: var(--t-2xs); font-weight: 500; color: var(--gold); letter-spacing: 4px; text-transform: uppercase; }
-    .blade-rating-block { margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--border-hair); }
-    .google-maps-link { display: inline-flex; align-items: center; gap: var(--s3); text-decoration: none; transition: opacity 0.2s ease; }
+
+    .blade-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: var(--t-xl); font-weight: 700;
+      color: var(--white); letter-spacing: 0.5px;
+      line-height: 1.1;
+    }
+    .blade-category {
+      display: block; margin-top: var(--s2);
+      font-size: var(--t-2xs); font-weight: 500;
+      color: var(--gold); letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+
+    /* ─── BLOCK 2: Google Maps Rating ──────────────────────────── */
+    .blade-rating-block {
+      margin-top: var(--s4); padding-top: var(--s4);
+      border-top: 1px solid var(--border-hair);
+    }
+    .google-maps-link {
+      display: inline-flex; align-items: center; gap: var(--s3);
+      text-decoration: none;
+      transition: opacity 0.2s ease;
+    }
     .google-maps-link:hover { opacity: 0.72; }
-    .star-row { font-size: 15px; letter-spacing: 2px; color: var(--gold); }
+    .star-row {
+      font-size: 15px; letter-spacing: 2px;
+      color: var(--gold);
+    }
     .rating-label-wrap { display: flex; flex-direction: column; gap: 1px; }
-    .rating-score { font-family: 'Cormorant Garamond', serif; font-size: var(--t-md); font-weight: 600; color: var(--white); line-height: 1; }
-    .rating-cta { font-size: var(--t-2xs); font-weight: 500; letter-spacing: 3px; text-transform: uppercase; color: var(--text-lo); border-bottom: 1px solid var(--border-hair); padding-bottom: 1px; }
-    .blade-price-block { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border-hair); }
-    .price-amount { display: block; font-family: 'Cormorant Garamond', serif; font-size: var(--t-2xl); font-weight: 300; font-style: italic; color: var(--gold); line-height: 1; letter-spacing: -1px; }
-    .price-per { display: block; margin-top: var(--s2); font-size: var(--t-2xs); font-weight: 400; letter-spacing: 4px; text-transform: uppercase; color: var(--text-lo); }
-    .blade-ingredients-block { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border-hair); }
-    .ingredients-eyebrow { font-size: var(--t-2xs); font-weight: 500; letter-spacing: 4px; text-transform: uppercase; color: var(--text-lo); margin-bottom: var(--s3); }
-    .ingredients-prose { font-family: 'Cormorant Garamond', serif; font-size: var(--t-lg); font-weight: 300; font-style: italic; color: var(--text-mid); line-height: 1.55; }
-    .allergen-strip { margin-top: var(--s3); padding: var(--s2) var(--s3); background: rgba(224,90,90,0.07); border-left: 2px solid rgba(224,90,90,0.55); border-radius: 3px; font-size: var(--t-xs); color: rgba(224,130,130,0.9); line-height: 1.5; display: none; }
-    .blade-video-block { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border-hair); }
-    .video-cta { width: 100%; padding: var(--s3) var(--s4); background: var(--gold); border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: var(--t-xs); font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--ink); cursor: pointer; position: relative; overflow: hidden; transition: transform 0.35s var(--ease-spring), box-shadow 0.35s ease; }
-    .video-cta::after { content: ''; position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent); transition: left 0.5s ease; }
+    .rating-score {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: var(--t-md); font-weight: 600;
+      color: var(--white); line-height: 1;
+    }
+    .rating-cta {
+      font-size: var(--t-2xs); font-weight: 500;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--text-lo);
+      border-bottom: 1px solid var(--border-hair);
+      padding-bottom: 1px;
+    }
+
+    /* ─── BLOCK 3: Price ────────────────────────────────────────── */
+    .blade-price-block {
+      margin-top: var(--s5); padding-top: var(--s4);
+      border-top: 1px solid var(--border-hair);
+    }
+    .price-amount {
+      display: block;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: var(--t-2xl); font-weight: 300; font-style: italic;
+      color: var(--gold); line-height: 1;
+      letter-spacing: -1px;
+    }
+    .price-per {
+      display: block; margin-top: var(--s2);
+      font-size: var(--t-2xs); font-weight: 400;
+      letter-spacing: 4px; text-transform: uppercase;
+      color: var(--text-lo);
+    }
+
+    /* ─── BLOCK 4: Ingredients ─────────────────────────────────── */
+    .blade-ingredients-block {
+      margin-top: var(--s5); padding-top: var(--s4);
+      border-top: 1px solid var(--border-hair);
+    }
+    .ingredients-eyebrow {
+      font-size: var(--t-2xs); font-weight: 500;
+      letter-spacing: 4px; text-transform: uppercase;
+      color: var(--text-lo); margin-bottom: var(--s3);
+    }
+    .ingredients-prose {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: var(--t-lg); font-weight: 300; font-style: italic;
+      color: var(--text-mid); line-height: 1.55;
+    }
+    .allergen-strip {
+      margin-top: var(--s3);
+      padding: var(--s2) var(--s3);
+      background: rgba(224,90,90,0.07);
+      border-left: 2px solid rgba(224,90,90,0.55);
+      border-radius: 3px;
+      font-size: var(--t-xs); color: rgba(224,130,130,0.9);
+      line-height: 1.5; display: none;
+    }
+
+    /* ─── BLOCK 5: Video CTA ───────────────────────────────────── */
+    .blade-video-block {
+      margin-top: var(--s5); padding-top: var(--s4);
+      border-top: 1px solid var(--border-hair);
+    }
+    .video-cta {
+      width: 100%;
+      padding: var(--s3) var(--s4);
+      background: var(--gold);
+      border: none; border-radius: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: var(--t-xs); font-weight: 600;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--ink); cursor: pointer;
+      position: relative; overflow: hidden;
+      transition: transform 0.35s var(--ease-spring),
+                  box-shadow 0.35s ease;
+    }
+    .video-cta::after {
+      content: '';
+      position: absolute; top: 0; left: -100%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transition: left 0.5s ease;
+    }
     .video-cta:hover { transform: translateY(-3px); box-shadow: 0 14px 36px rgba(212,175,55,0.40); }
     .video-cta:hover::after { left: 140%; }
     .video-cta:active { transform: translateY(0); }
-    .share-row { display: flex; gap: var(--s2); margin-top: var(--s4); }
-    .share-btn { flex: 1; padding: var(--s2) var(--s3); background: transparent; border: 1px solid var(--border-hair); border-radius: 5px; color: var(--text-lo); font-size: 14px; cursor: pointer; transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
-    .share-btn:hover { background: var(--gold-dim); border-color: var(--gold-mid); color: var(--gold); }
-    #videoModal { position: fixed; inset: 0; z-index: 350; background: rgba(0,0,0,0.97); display: flex; align-items: center; justify-content: center; padding: var(--s5); opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0.35s ease; }
+
+    /* Social share row */
+    .share-row {
+      display: flex; gap: var(--s2); margin-top: var(--s4);
+    }
+    .share-btn {
+      flex: 1; padding: var(--s2) var(--s3);
+      background: transparent;
+      border: 1px solid var(--border-hair);
+      border-radius: 5px; color: var(--text-lo);
+      font-size: 14px; cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    .share-btn:hover {
+      background: var(--gold-dim); border-color: var(--gold-mid); color: var(--gold);
+    }
+
+
+    /* ═══════════════════════════════════════════════════════════════
+       VIDEO MODAL
+    ═══════════════════════════════════════════════════════════════ */
+    #videoModal {
+      position: fixed; inset: 0; z-index: 350;
+      background: rgba(0,0,0,0.97);
+      display: flex; align-items: center; justify-content: center;
+      padding: var(--s5);
+      opacity: 0; visibility: hidden;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
+    }
     #videoModal.open { opacity: 1; visibility: visible; }
-    .modal-inner { position: relative; width: 100%; max-width: 600px; border-radius: 10px; overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px var(--border-hair); }
+    .modal-inner {
+      position: relative; width: 100%; max-width: 600px;
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px var(--border-hair);
+    }
     #modalVideo { width: 100%; height: auto; display: block; }
-    .modal-x { position: absolute; top: var(--s3); right: var(--s3); width: 38px; height: 38px; background: rgba(0,0,0,0.7); border: 1px solid var(--border-hair); border-radius: 50%; color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; z-index: 10; transition: background 0.2s ease, color 0.2s ease; }
+    .modal-x {
+      position: absolute; top: var(--s3); right: var(--s3);
+      width: 38px; height: 38px;
+      background: rgba(0,0,0,0.7); border: 1px solid var(--border-hair);
+      border-radius: 50%; color: var(--white);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; cursor: pointer; z-index: 10;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
     .modal-x:hover { background: var(--gold); color: var(--ink); }
-    #gestureHint { position: fixed; bottom: var(--s5); left: 50%; transform: translateX(-50%); z-index: 55; pointer-events: none; font-size: var(--t-2xs); letter-spacing: 3px; text-transform: uppercase; color: var(--text-lo); animation: breathe 2.4s ease-in-out infinite; }
+
+
+    /* ═══════════════════════════════════════════════════════════════
+       GESTURE HINT + TOAST
+    ═══════════════════════════════════════════════════════════════ */
+    #gestureHint {
+      position: fixed; bottom: var(--s5); left: 50%;
+      transform: translateX(-50%);
+      z-index: 55; pointer-events: none;
+      font-size: var(--t-2xs); letter-spacing: 3px;
+      text-transform: uppercase; color: var(--text-lo);
+      animation: breathe 2.4s ease-in-out infinite;
+    }
     @keyframes breathe { 0%,100%{opacity:0.35;} 50%{opacity:0.85;} }
-    #toast { position: fixed; bottom: var(--s6); left: 50%; transform: translateX(-50%) translateY(120px); z-index: 400; pointer-events: none; padding: var(--s2) var(--s5); background: rgba(5,5,5,0.95); color: var(--gold); border: 1px solid var(--border-hair); border-radius: 6px; max-width: 82%; text-align: center; font-size: var(--t-2xs); letter-spacing: 2px; white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: transform 0.45s var(--ease-out-expo); }
+
+    #toast {
+      position: fixed; bottom: var(--s6); left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      z-index: 400; pointer-events: none;
+      padding: var(--s2) var(--s5);
+      background: rgba(5,5,5,0.95); color: var(--gold);
+      border: 1px solid var(--border-hair);
+      border-radius: 6px; max-width: 82%; text-align: center;
+      font-size: var(--t-2xs); letter-spacing: 2px;
+      white-space: nowrap;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      transition: transform 0.45s var(--ease-out-expo);
+    }
     #toast.show { transform: translateX(-50%) translateY(0); }
-    @keyframes riseIn { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
-    [dir="rtl"] #sideBlade { right: auto; left: 0; border-left: none; border-right: 1px solid var(--border-hair); box-shadow: inset -2px 0 0 0 rgba(212,175,55,0.12), 20px 0 80px rgba(0,0,0,0.6); transform: translateX(-105%); }
+
+    /* ─── Animations ───────────────────────────────────────────── */
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* RTL overrides (Arabic) */
+    [dir="rtl"] #sideBlade {
+      right: auto; left: 0;
+      border-left: none; border-right: 1px solid var(--border-hair);
+      box-shadow: inset -2px 0 0 0 rgba(212,175,55,0.12), 20px 0 80px rgba(0,0,0,0.6);
+      transform: translateX(-105%);
+    }
     [dir="rtl"] #sideBlade.active { transform: translateX(0); }
     [dir="rtl"] .blade-x { right: auto; left: var(--s4); }
     [dir="rtl"] .allergen-strip { border-left: none; border-right: 2px solid rgba(224,90,90,0.55); }
@@ -151,78 +639,147 @@
 </head>
 <body>
 
+<!-- ══════════════════════════════════════════════════════════════
+     LAUNCH SCREEN
+════════════════════════════════════════════════════════════════ -->
 <div id="launchScreen">
   <div class="launch-bg" id="launchBg"></div>
   <div class="launch-scrim"></div>
+
+  <!-- HUD corners -->
   <button class="hud-corner corner-tl" id="btnInfo" aria-label="Restaurant info">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 17v-6"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
   </button>
   <button class="hud-corner corner-tr" id="btnMenu" aria-label="Full menu">
     <svg viewBox="0 0 24 24"><line x1="3" y1="6"  x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
+
+  <!-- Language pill -->
   <div class="lang-pill" role="group" aria-label="Language selection">
     <div class="lang-opt active" data-lang="en" tabindex="0">EN</div>
     <div class="lang-opt" data-lang="ar" tabindex="0">عربي</div>
     <div class="lang-opt" data-lang="fr" tabindex="0">FR</div>
   </div>
+
+  <!-- Hero content -->
   <div class="launch-body">
-    <h1 class="launch-wordmark" data-i18n="brand" id="launchBrand">CULINARY AR</h1>
-    <p class="launch-tagline"  data-i18n="tagline" id="launchTagline">Discover Culinary Masterpieces</p>
-    <p class="launch-sub"      data-i18n="subtitle" id="launchSub">CINEMA-GRADE DINING EXPERIENCE</p>
+    <h1 class="launch-wordmark" data-i18n="brand" id="launchBrand">UMAMI PRIME</h1>
+    <p class="launch-tagline"  data-i18n="tagline" id="launchTagline">The Fifth Dimension of Taste</p>
+    <p class="launch-sub"      data-i18n="subtitle" id="launchSub">CONTEMPORARY JAPANESE MOLECULAR GASTRONOMY</p>
+
     <button class="portal-ring" id="portalBtn" aria-label="Enter AR experience">
       <div class="portal-img"   id="portalImg"></div>
       <div class="portal-scrim"></div>
-      <div class="portal-icon">🍽️</div>
+      <div class="portal-icon">🍱</div>
     </button>
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     AR VIEWPORT STACK
+     Layer order (bottom → top):
+       #videoFeed       z:2  live camera (OCR source)
+       #parallaxCanvas  z:3  Three.js ar-dish-container render
+       #arOverlay       z:4  invisible click catcher → Raycaster
+       #ocrViewfinder   z:5  scan-line overlay (shows when scanning)
+       #hudBar          z:60 status overlay
+════════════════════════════════════════════════════════════════ -->
 <video  id="videoFeed"      playsinline autoplay muted></video>
 <canvas id="parallaxCanvas"></canvas>
 <div    id="arOverlay"      role="button" aria-label="Tap dish to explore"></div>
 
+<!-- OCR Viewfinder — scan-line and corner brackets shown while OCR is active -->
+<div id="ocrViewfinder">
+  <div class="ocr-scanline"></div>
+  <div class="ocr-corner tl"></div>
+  <div class="ocr-corner tr"></div>
+  <div class="ocr-corner bl"></div>
+  <div class="ocr-corner br"></div>
+</div>
+
+<!-- HUD bar (top) -->
 <div id="hudBar">
-  <span class="hud-name" id="hudName">AR</span>
+  <span class="hud-name" id="hudName">UP</span>
+
+  <!-- OCR status pill — primary trigger brain indicator -->
+  <div id="ocrPill" data-status="init">
+    <div class="ocr-dot"></div>
+    <span id="ocrStatus">… INIT OCR</span>
+  </div>
+
   <div class="hud-status-pill">
     <div class="hud-dot"></div>
     <span id="hudStatus" data-i18n="tracking">TRACKING</span>
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     ★ SIDE BLADE — 5 motion-element blocks
+       Block 1 (.delay-1): Title + Category
+       Block 2 (.delay-2): Google Maps Rating Link
+       Block 3 (.delay-3): Price
+       Block 4 (.delay-4): Ingredients (text-only) + Allergen
+       Block 5 (.delay-5): Video CTA + Social Share
+════════════════════════════════════════════════════════════════ -->
 <aside id="sideBlade" aria-label="Dish details" aria-hidden="true">
   <button class="blade-x" id="bladeClose" aria-label="Close">✕</button>
+
+  <!-- ─── Block 1: Title + Category ─────────────────────────── -->
   <div class="blade-block motion-element delay-1">
-    <h2 class="blade-title" data-i18n="dish_title" id="bladeTitle">—</h2>
+    <h2 class="blade-title"    data-i18n="dish_title"    id="bladeTitle">—</h2>
     <span class="blade-category" data-i18n="dish_category" id="bladeCategory">—</span>
   </div>
+
+  <!-- ─── Block 2: Google Maps Rating ───────────────────────── -->
   <div class="blade-block blade-rating-block motion-element delay-2">
-    <a id="googleMapsLink" href="#" target="_blank" rel="noopener noreferrer" class="google-maps-link">
+    <a  id="googleMapsLink"
+        href="https://maps.google.com/maps?q=umami+prime+tokyo"
+        target="_blank" rel="noopener noreferrer"
+        class="google-maps-link"
+        aria-label="Rate us on Google Maps">
       <span class="star-row" id="bladeStars">★★★★★</span>
       <div class="rating-label-wrap">
-        <span class="rating-score" id="bladeScore">4.8</span>
+        <span class="rating-score" id="bladeScore">4.9</span>
         <span class="rating-cta" data-i18n="rate_google" id="bladeRateCta">Rate us on Google</span>
       </div>
     </a>
   </div>
+
+  <!-- ─── Block 3: Price ─────────────────────────────────────── -->
   <div class="blade-block blade-price-block motion-element delay-3">
-    <span class="price-amount" data-i18n="dish_price" id="bladePrice">—</span>
-    <span class="price-per" data-i18n="price_label" id="bladePriceLabel">PER PERSON</span>
+    <span class="price-amount" data-i18n="dish_price"  id="bladePrice">—</span>
+    <span class="price-per"    data-i18n="price_label" id="bladePriceLabel">PER PERSON</span>
   </div>
+
+  <!-- ─── Block 4: Ingredients (text-only, no icons) ─────────── -->
   <div class="blade-block blade-ingredients-block motion-element delay-4">
     <p class="ingredients-eyebrow" data-i18n="ingredients_label" id="bladeIngLabel">KEY INGREDIENTS</p>
-    <p class="ingredients-prose" data-i18n="dish_ingredients" id="bladeIngText">—</p>
-    <div class="allergen-strip" id="allergenStrip"><strong>⚠</strong>&nbsp;<span id="allergenText"></span></div>
+    <p class="ingredients-prose"   data-i18n="dish_ingredients"  id="bladeIngText">—</p>
+    <div class="allergen-strip" id="allergenStrip">
+      <strong>⚠</strong>&nbsp;<span id="allergenText"></span>
+    </div>
   </div>
+
+  <!-- ─── Block 5: Video CTA + Social Share ──────────────────── -->
   <div class="blade-block blade-video-block motion-element delay-5">
-    <button class="video-cta" id="videoCta"><span data-i18n="watch_video" id="videoCtaLabel">WATCH THE ARTISTRY</span></button>
+    <button class="video-cta" id="videoCta">
+      <span data-i18n="watch_video" id="videoCtaLabel">WATCH THE ARTISTRY</span>
+    </button>
+
     <div class="share-row">
-      <button class="share-btn" id="shareIG" title="Instagram">📷</button>
-      <button class="share-btn" id="shareWA" title="WhatsApp">💬</button>
+      <button class="share-btn" id="shareIG"   title="Instagram">📷</button>
+      <button class="share-btn" id="shareWA"   title="WhatsApp">💬</button>
       <button class="share-btn" id="shareMail" title="Email">✉️</button>
     </div>
   </div>
 </aside>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     VIDEO MODAL
+════════════════════════════════════════════════════════════════ -->
 <div id="videoModal" role="dialog" aria-modal="true" aria-label="Dish video">
   <div class="modal-inner">
     <button class="modal-x" id="modalClose" aria-label="Close video">✕</button>
@@ -230,167 +787,1208 @@
   </div>
 </div>
 
+<!-- Gesture hint + Toast -->
 <p  id="gestureHint" data-i18n="swipe" aria-hidden="true">SWIPE TO DISMISS</p>
 <div id="toast"      role="status"  aria-live="polite"></div>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════════════════ -->
 <script>
 /* ─────────────────────────────────────────────────────────────────
-   DATA BRIDGE (المجنون) — يجلب umami-prime/data.js بأي طريقة ويعالج المسارات
-───────────────────────────────────────────────────────────────── */
-(async function crazyDataBridge() {
-  try {
-    console.log('[CrazyBridge] جاري تحميل umami-prime/data.js ...');
-    const response = await fetch('umami-prime/data.js');
-    let text = await response.text();
-    
-    // إزالة الكومنتات لتسهيل التحليل
-    text = text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-    
-    let extractedData = null;
-    
-    // محاولة 1: البحث عن var/let/const xxx = {...};
-    let match = text.match(/(?:var|let|const)\s+(\w+)\s*=\s*(\{[\s\S]*?\n\})/);
-    if (match) {
-      try { extractedData = eval('(' + match[2] + ')'); } catch(e) {}
-    }
-    
-    // محاولة 2: البحث عن window.RESTAURANT_DATA = {...};
-    if (!extractedData) {
-      match = text.match(/window\.RESTAURANT_DATA\s*=\s*(\{[\s\S]*?\n\})/);
-      if (match) {
-        try { extractedData = eval('(' + match[1] + ')'); } catch(e) {}
-      }
-    }
-    
-    // محاولة 3: البحث عن return {...} أو JSON صريح
-    if (!extractedData) {
-      try {
-        const possibleJson = text.match(/(\{[\s\S]*\})/);
-        if (possibleJson) extractedData = JSON.parse(possibleJson[1]);
-      } catch(e) {}
-    }
-    
-    // محاولة 4: تنفيذ الملف في سياق مؤقت
-    if (!extractedData) {
-      const temp = {};
-      const func = new Function('window', text + '; return window.RESTAURANT_DATA || window.data || null;');
-      extractedData = func({});
-    }
-    
-    if (extractedData && (extractedData.restaurant || extractedData.menu)) {
-      window.RESTAURANT_DATA = extractedData;
-      console.log('[CrazyBridge] تم استخراج البيانات بنجاح:', extractedData);
-    } else {
-      console.warn('[CrazyBridge] لم نتمكن من استخراج البيانات من data.js');
-    }
-  } catch (err) {
-    console.error('[CrazyBridge] فشل تحميل أو تحليل data.js', err);
-  }
-})();
-
-/* ─────────────────────────────────────────────────────────────────
-   CONFIG — البيانات الافتراضية (سيتم دمجها مع الحقيقية إن وجدت)
+   CONFIG — Merged with RESTAURANT_DATA from data.js (UMAMI PRIME).
+   All placeholder menu items replaced with production data.
+   AR settings, i18n, and restaurant metadata are production-ready.
 ───────────────────────────────────────────────────────────────── */
 const CONFIG = {
+
+  /* ── Restaurant metadata (UMAMI PRIME — Tokyo) ─────────────── */
   restaurant: {
-    name:          'CULINARY AR',
-    tagline:       'Discover Culinary Masterpieces',
-    subtitle:      'CINEMA-GRADE DINING EXPERIENCE',
-    heroImage:     'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=900&q=80',
-    portalImage:   'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=80',
-    location:      'Downtown, City',
-    phone:         '+1 (555) 123-4567',
-    googleMapsUrl: 'https://maps.google.com/YOUR_RESTAURANT_LINK'
+    id:            'UMAMI-PRIME-JP-001',
+    name:          'UMAMI PRIME',
+    tagline:       'The Fifth Dimension of Taste',
+    subtitle:      'Contemporary Japanese Molecular Gastronomy',
+    heroImage:     'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1200&q=85',
+    portalImage:   'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=85',
+    location:      '6-10-1 Roppongi, Minato Ward, Tokyo 106-6108',
+    phone:         '+81-3-XXXX-XXXX',
+    email:         'reservations@umamiprime.jp',
+    city:          'Tokyo',
+    region:        'Minato Ward, Roppongi Hills',
+    country:       'Japan',
+    coordinates:   { latitude: 35.6654, longitude: 139.7298 },
+    googleMapsUrl: 'https://maps.google.com/maps?q=umami+prime+tokyo',
+    reservationUrl:'https://booking.umamiprime.jp',
+    instagramHandle:'@umami.prime.tokyo',
+    michelin:      '★★★',
+    description:   'UMAMI PRIME elevates Japanese culinary arts through molecular gastronomy and precision cooking. Each dish explores the fifth taste dimension—umami—via fermented foundations, sake pairings, and theatrical presentation. Seating for 18 guests only; omakase experience required.'
   },
+
+  /* ── AR configuration ──────────────────────────────────────── */
   ar: {
-    mindFile:   null,
-    demoMode:   true,
-    tiltMin:    20,
-    tiltMax:    80
+    mindFile:      '/assets/umami-prime.mind',
+    demoMode:      true,
+    tiltMin:       20,
+    tiltMax:       80,
+    targetTimeout: 8000,
+    parallax: {
+      dishScale:     2.5,
+      glowIntensity: 0.15,
+      rotationSpeed: 0.0008,
+      cameraFOV:     75,
+      nearPlane:     0.1,
+      farPlane:      1000
+    }
   },
+
+  /* ── API endpoints ─────────────────────────────────────────── */
   api: {
     menuUrl:        null,
     analyticsUrl:   null
   },
+
+  /* ══════════════════════════════════════════════════════════════
+     MENU — 3 Signature Dishes (from RESTAURANT_DATA v2.0)
+     Each dish includes: bilingual EN/AR names, descriptions,
+     ingredients, pricing, allergens, video, and AR target index.
+  ══════════════════════════════════════════════════════════════ */
   menu: [
-    { id: 1, name: 'Signature Wagyu', category: 'Prime Cuts', description: 'A5 Japanese Wagyu with beurre blanc and microgreens.', price: '$68', priceRaw: 68, ingredients: ['A5 Wagyu', 'Beurre Blanc', 'Microgreens', 'Shiso'], allergens: 'Contains Dairy', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=85', rating: 4.9, targetIndex: 0 },
-    { id: 2, name: 'Saffron Risotto', category: 'Grains & Earth', description: 'Carnaroli rice with saffron from Iran and aged Parmigiano.', price: '$32', priceRaw: 32, ingredients: ['Carnaroli Rice', 'Iranian Saffron', 'Aged Parmigiano', 'Osso Buco Jus'], allergens: 'Contains Dairy, Gluten', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', image: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=85', rating: 4.7, targetIndex: 1 },
-    { id: 3, name: 'Sea Urchin Delice', category: 'Ocean', description: 'Santa Barbara uni with crispy nori and yuzu emulsion.', price: '$52', priceRaw: 52, ingredients: ['Sea Urchin (Uni)', 'Crispy Nori', 'Yuzu Emulsion', 'Shiso Flower'], allergens: 'Contains Shellfish, Fish', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', image: 'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=600&q=85', rating: 4.8, targetIndex: 2 }
+    /* ── Dish 1 ─────────────────────────────────────────────── */
+    {
+      id:               1,
+      targetIndex:      0,
+      category:         'Umami Foundation',
+      categoryArabic:   'أساس الأومامي',
+
+      name:             'Miso-Cured Bluefin with Soy Consommé Sphere',
+      nameArabic:       'سمك التونة الزعنفة الزرقاء المعالج بالميسو مع كرة حساء صويا',
+
+      description:      'Hand-cut Hokkaido bluefin tuna, cured for 72 hours in a proprietary red miso blend (Sendai miso, 18-year sake lees, bonito flakes). Served with a spherified soy consommé that bursts on the palate, releasing umami intensity. Accompanied by a quenelle of wasabi foam and microgreens harvested from our rooftop garden.',
+      descriptionArabic:'سمك تونة الزعنفة الزرقاء من هوكايدو مقطع يدويًا، معالج لمدة 72 ساعة في خليط ميسو أحمر حاصري. يُقدم مع حساء صويا مكروي يتفجر في الحنك، مما يطلق كثافة الأومامي. يرافقه كريمة واسابي وخضار صغيرة من حديقتنا على السطح.',
+
+      ingredients: [
+        'Hokkaido Bluefin Tuna (Maguro)',
+        'Sendai Red Miso (18-month aged)',
+        'Sake Lees (Koshu)',
+        'Bonito Flake Stock',
+        'Soy Sauce (Tamari, 5-year aged)',
+        'Wasabi Root (Fresh, Izu origin)',
+        'Dashi Kombu',
+        'Rooftop Microgreens'
+      ],
+      ingredientsArabic: [
+        'سمك التونة ذو الزعنفة الزرقاء من هوكايدو',
+        'ميسو أحمر من سينداي (مُعتق 18 شهرًا)',
+        'رواسب الساكي',
+        'مرقة رقائق سمك بوني',
+        'صلصة صويا تاماري (معتقة 5 سنوات)',
+        'جذر الواسابي الطازج',
+        'كومبو داشي',
+        'خضار دقيقة من السطح'
+      ],
+
+      calories:         185,
+      protein:          32,
+      fat:              5,
+      carbohydrates:    4,
+      sodium:           420,
+      allergens:        ['Fish', 'Soy', 'Sesame'],
+      allergenArabic:   ['الأسماك', 'الصويا', 'السمسم'],
+
+      price:            '$95',
+      priceJPY:         '¥12,500',
+      coursePosition:   'Course 1 of 8',
+
+      image:            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=85',
+      dishCard:         'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=800&q=85',
+
+      videoUrl:         'https://commondatastorage.googleapis.com/gtv-videos-library/sample/ElephantsDream.mp4',
+      videoTitle:       'Miso Cure & Soy Sphere Technique',
+      videoTitleArabic: 'تقنية معالجة الميسو وكرة الصويا',
+      videoDuration:    '8:42',
+
+      tastingNotes:     'Opening: Umami richness from 18-year miso. Mid-palate: Tuna sweetness emerges. Finish: Bright soy consommé bursts, followed by wasabi heat. Sake pairing: Junmai Daiginjo from Niigata.',
+
+      chefNote:         'This dish honors the 300-year miso-making tradition of Sendai. The three-day cure allows the miso enzymes to break down the tuna\'s proteins, creating a naturally umami-rich experience without additives.',
+
+      rating:           4.9,
+      reviews:          287
+    },
+
+    /* ── Dish 2 ─────────────────────────────────────────────── */
+    {
+      id:               2,
+      targetIndex:      1,
+      category:         'Precision Heat',
+      categoryArabic:   'الحرارة الدقيقة',
+
+      name:             'Sake-Steamed Scallop with Fermented Black Garlic Emulsion',
+      nameArabic:       'الإسقلوب المطهو على البخار بالساكي مع مستحلب الثوم الأسود المخمر',
+
+      description:      'Single A5-grade Hokkaido scallop, precisely vacuum-sealed and steam-cooked at 64°C for 7 minutes in premium Daiginjo sake. The scallop\'s natural sweetness is preserved at the molecular level. Finished with a silky black garlic emulsion (fermented for 45 days), aged soy beurre blanc, and a garnish of crispy sake powder.',
+      descriptionArabic:'إسقلوب واحد من الدرجة A5 من هوكايدو، معبأ بفراغ دقيق ومطهو على البخار عند 64 درجة مئوية لمدة 7 دقائق في ساكي ديجينجو الممتاز. يتم الحفاظ على حلاوة الإسقلوب الطبيعية على المستوى الجزيئي.',
+
+      ingredients: [
+        'Hokkaido Scallop (A5-grade, size 20)',
+        'Daiginjo Sake (Premium grade)',
+        'Black Garlic (45-day fermented)',
+        'Aged Soy Sauce (Tamari)',
+        'Kombu Butter',
+        'Sake Powder (Freeze-dried)',
+        'Yuzu Zest',
+        'Edible Gold Leaf'
+      ],
+      ingredientsArabic: [
+        'إسقلوب هوكايدو (درجة A5)',
+        'ساكي ديجينجو (درجة ممتازة)',
+        'ثوم أسود (مخمر 45 يومًا)',
+        'صلصة صويا معتقة',
+        'زبدة كومبو',
+        'مسحوق الساكي',
+        'قشرة يوزو',
+        'أوراق ذهب صالحة للأكل'
+      ],
+
+      calories:         210,
+      protein:          28,
+      fat:              8,
+      carbohydrates:    6,
+      sodium:           380,
+      allergens:        ['Shellfish', 'Soy', 'Sesame'],
+      allergenArabic:   ['المحار', 'الصويا', 'السمسم'],
+
+      price:            '$78',
+      priceJPY:         '¥10,200',
+      coursePosition:   'Course 3 of 8',
+
+      image:            'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=600&q=85',
+      dishCard:         'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&q=85',
+
+      videoUrl:         'https://commondatastorage.googleapis.com/gtv-videos-library/sample/ForBiggerBlazes.mp4',
+      videoTitle:       'Sous-Vide Precision Cooking & Black Garlic Fermentation',
+      videoTitleArabic: 'طهي البحر المحضر بدقة وتخمير الثوم الأسود',
+      videoDuration:    '12:15',
+
+      tastingNotes:     'Silky opening with scallop sweetness. Black garlic adds umami complexity. Soy beurre blanc provides richness. Finish: Fresh yuzu brightens the palate. Sake pairing: Tokubetsu Junmai.',
+
+      chefNote:         'Sous-vide cooking at precisely 64°C ensures the scallop\'s proteins remain tender while moisture is preserved. Black garlic fermentation transforms raw garlic\'s harshness into deep umami notes.',
+
+      rating:           4.8,
+      reviews:          198
+    },
+
+    /* ── Dish 3 ─────────────────────────────────────────────── */
+    {
+      id:               3,
+      targetIndex:      2,
+      category:         'Molecular Finale',
+      categoryArabic:   'الختام الجزيئي',
+
+      name:             'Miso Caramel Sphere with Matcha Air & Sesame Tuile',
+      nameArabic:       'كرة كراميل ميسو مع هواء ماتشا وقرميدة السمسم',
+
+      description:      'A striking finale dessert that deconstructs traditional miso cake into molecular elements. Hollow sphere of red miso caramel (caramelized white miso + dark miso paste + yuzu) sits atop a matcha panna cotta. The sphere bursts to release a warm, salty-sweet interior. Garnished with matcha air, crispy sesame tuile, and a quenelle of sake-infused mascarpone.',
+      descriptionArabic:'حلوى نهائية مذهلة تفكك كعكة الميسو التقليدية إلى عناصر جزيئية. كرة مجوفة من كراميل ميسو أحمر تجلس فوق بانا كوتا ماتشا. تنفجر الكرة لتحرير داخل دافئ حلو ومالح.',
+
+      ingredients: [
+        'White Miso (Shinshu)',
+        'Dark Miso Paste (Hatcho)',
+        'Yuzu Juice & Zest',
+        'Matcha Powder (Premium ceremonial)',
+        'Heavy Cream',
+        'Mascarpone',
+        'Sesame Seeds (Black & white)',
+        'Sake (Nama, unpasteurized)',
+        'Gelatin (Plant-based)',
+        'Egg White (for air/foam)'
+      ],
+      ingredientsArabic: [
+        'ميسو أبيض (شينشو)',
+        'معجون ميسو داكن (هاتشو)',
+        'عصير وقشرة يوزو',
+        'مسحوق ماتشا (ممتاز احتفالي)',
+        'كريمة ثقيلة',
+        'ماسكاربوني',
+        'بذور السمسم (أسود وأبيض)',
+        'ساكي ناما (غير مبستر)',
+        'جيلاتين (نبات الأساس)',
+        'بياض البيض (للهواء والرغوة)'
+      ],
+
+      calories:         240,
+      protein:          6,
+      fat:              14,
+      carbohydrates:    24,
+      sodium:           180,
+      allergens:        ['Egg', 'Dairy', 'Sesame', 'Soy'],
+      allergenArabic:   ['البيض', 'الألبان', 'السمسم', 'الصويا'],
+
+      price:            '$52',
+      priceJPY:         '¥6,800',
+      coursePosition:   'Course 8 of 8 (Dessert)',
+
+      image:            'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&q=85',
+      dishCard:         'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&q=85',
+
+      videoUrl:         'https://commondatastorage.googleapis.com/gtv-videos-library/sample/BigBuckBunny.mp4',
+      videoTitle:       'Molecular Sphere Technique & Matcha Air Creation',
+      videoTitleArabic: 'تقنية الكرة الجزيئية وإنشاء هواء ماتشا',
+      videoDuration:    '14:33',
+
+      tastingNotes:     'Initial sweetness from caramel. The bursting sphere releases umami depth (miso + yuzu). Matcha air adds bitterness. Sesame tuile provides textural crunch. Sake mascarpone rounds the finish. Overall: sweet, salty, bitter, and umami in harmony.',
+
+      chefNote:         'This dessert challenges the Western separation of sweet and savory. By incorporating miso into a dessert format, we explore umami\'s presence across all taste dimensions. The sphere technique requires precision timing and nitrogen flash-freezing.',
+
+      rating:           4.7,
+      reviews:          156
+    }
   ],
+
+  /* ══════════════════════════════════════════════════════════════
+     i18n — English, Arabic, French
+     Arabic sourced from RESTAURANT_DATA.i18n.ar (UMAMI PRIME).
+     French adapted for UMAMI PRIME brand voice.
+  ══════════════════════════════════════════════════════════════ */
   i18n: {
-    en: { brand: 'CULINARY AR', tagline: 'Discover Culinary Masterpieces', subtitle: 'CINEMA-GRADE DINING EXPERIENCE', dish_title: null, dish_category: null, rate_google: 'Rate us on Google', dish_price: null, price_label: 'PER PERSON', ingredients_label: 'KEY INGREDIENTS', dish_ingredients: null, watch_video: 'WATCH THE ARTISTRY', swipe: 'SWIPE RIGHT TO DISMISS', identified: 'IDENTIFIED', tracking: 'TRACKING', locked: 'LOCKED', tap_dish: 'TAP THE DISH TO EXPLORE' },
-    ar: { brand: 'طهي AR', tagline: 'اكتشف روائع الطهي', subtitle: 'تجربة سينمائية الجودة', dish_title: null, dish_category: null, rate_google: 'قيّمنا على Google', dish_price: null, price_label: 'للشخص', ingredients_label: 'المكونات الأساسية', dish_ingredients: null, watch_video: 'شاهد فن الطهي', swipe: 'اسحب لليسار للإغلاق', identified: 'تم التحديد', tracking: 'جاري التتبع', locked: 'مقفول', tap_dish: 'اضغط على الطبق' },
-    fr: { brand: 'CULINAIRE AR', tagline: 'Découvrez les Chefs-d\'œuvre', subtitle: 'EXPÉRIENCE CINÉMATOGRAPHIQUE', dish_title: null, dish_category: null, rate_google: 'Notez-nous sur Google', dish_price: null, price_label: 'PAR PERSONNE', ingredients_label: 'INGRÉDIENTS CLÉS', dish_ingredients: null, watch_video: 'REGARDER L\'ARTISANAT', swipe: 'GLISSEZ POUR FERMER', identified: 'IDENTIFIÉ', tracking: 'SUIVI', locked: 'VERROUILLÉ', tap_dish: 'APPUYEZ SUR LE PLAT' }
+    en: {
+      brand:             'UMAMI PRIME',
+      tagline:           'The Fifth Dimension of Taste',
+      subtitle:          'Contemporary Japanese Molecular Gastronomy',
+      dish_title:        null,
+      dish_category:     null,
+      rate_google:       'RATE ON GOOGLE MAPS',
+      dish_price:        null,
+      price_label:       'PER PERSON',
+      ingredients_label: 'COMPONENTS',
+      dish_ingredients:  null,
+      watch_video:       'WATCH THE PREPARATION',
+      swipe:             'SWIPE RIGHT TO DISMISS',
+      identified:        'IDENTIFIED',
+      tracking:          'TRACKING DISH',
+      locked:            'LOCKED',
+      tap_dish:          'TAP DISH TO EXPERIENCE PREPARATION',
+      tasting_notes:     'Tasting Notes',
+      chef_note:         'Chef\'s Note',
+      booking:           'BOOK YOUR EXPERIENCE',
+      hours:             'Hours',
+      location:          'Location',
+      calories:          'Calories',
+      course_position:   'Course',
+      ocr_scanning:      'OCR SCANNING...',
+      ocr_detected:      'DISH DETECTED'
+    },
+    ar: {
+      brand:             'أومامي برايم',
+      tagline:           'البعد الخامس من الطعم',
+      subtitle:          'الطهي الجزيئي المعاصر الياباني',
+      dish_title:        null,
+      dish_category:     null,
+      rate_google:       'التقييم على خرائط جوجل',
+      dish_price:        null,
+      price_label:       'للشخص الواحد',
+      ingredients_label: 'المكونات',
+      dish_ingredients:  null,
+      watch_video:       'شاهد التحضير',
+      swipe:             'اسحب للإغلاق',
+      identified:        'تم التحديد',
+      tracking:          'تتبع الطبق',
+      locked:            'مقفول',
+      tap_dish:          'انقر على الطبق لتجربة التحضير',
+      tasting_notes:     'ملاحظات الذوق',
+      chef_note:         'ملاحظة الشيف',
+      booking:           'احجز تجربتك',
+      hours:             'الساعات',
+      location:          'الموقع',
+      calories:          'السعرات الحرارية',
+      course_position:   'الدورة',
+      ocr_scanning:      'جاري المسح...',
+      ocr_detected:      'تم اكتشاف الطبق'
+    },
+    fr: {
+      brand:             'UMAMI PRIME',
+      tagline:           'La Cinquième Dimension du Goût',
+      subtitle:          'Gastronomie Moléculaire Japonaise Contemporaine',
+      dish_title:        null,
+      dish_category:     null,
+      rate_google:       'Notez-nous sur Google Maps',
+      dish_price:        null,
+      price_label:       'PAR PERSONNE',
+      ingredients_label: 'COMPOSANTS',
+      dish_ingredients:  null,
+      watch_video:       'REGARDER LA PRÉPARATION',
+      swipe:             'GLISSEZ POUR FERMER',
+      identified:        'IDENTIFIÉ',
+      tracking:          'SUIVI DU PLAT',
+      locked:            'VERROUILLÉ',
+      tap_dish:          'APPUYEZ SUR LE PLAT',
+      tasting_notes:     'Notes de Dégustation',
+      chef_note:         'Note du Chef',
+      booking:           'RÉSERVEZ VOTRE EXPÉRIENCE',
+      hours:             'Heures',
+      location:          'Emplacement',
+      calories:          'Calories',
+      course_position:   'Plat',
+      ocr_scanning:      'SCAN EN COURS...',
+      ocr_detected:      'PLAT DÉTECTÉ'
+    }
   }
 };
 
+
 /* ─────────────────────────────────────────────────────────────────
-   تطبيق Data Bridge بعد تعريف CONFIG (دمج البيانات الحقيقية وإضافة البادئة)
+   STATE
 ───────────────────────────────────────────────────────────────── */
-(function applyDataBridge() {
-  const data = window.RESTAURAND_DATA; // ملاحظة: قد يكون غير معرف بعد اكتمال الجلب, لذلك نستخدم setTimeout أو Promise
-  // لكننا سننتظر اكتمال الجلب بشكل آمن.
-  // الحل: ننتظر 500ms ثم نتحقق. لكن الأفضل استخدام async/await في بداية التطبيق.
-  // سنقوم بتأجيل الدمج إلى ما بعد تحميل الصفحة مع انتظار الـ fetch.
-})();
+const STATE = {
+  started:      false,
+  bladeOpen:    false,
+  currentDish:  null,
+  lang:         'en',
+  deviceTiltOK: false,
+  touchStartX:  0,
+  pxCtx:        null    // parallax scene context
+};
 
-// الحل الأمثل: ننتظر اكتمال الـ fetch ثم ندمج البيانات ونبدأ التطبيق.
-let dataReady = false;
-let pendingData = null;
 
-// انتظار اكتمال CrazyBridge ثم تطبيق الدمج
-setTimeout(async () => {
-  // ننتظر قليلاً لعل الجلب يكتمل
-  for (let i = 0; i < 20; i++) {
-    if (window.RESTAURANT_DATA) break;
-    await new Promise(r => setTimeout(r, 100));
+/* ─────────────────────────────────────────────────────────────────
+   UTILS
+───────────────────────────────────────────────────────────────── */
+const el  = (id) => document.getElementById(id);
+const t   = (key) => CONFIG.i18n[STATE.lang]?.[key] ?? CONFIG.i18n.en[key] ?? key;
+
+let _toastTimer = null;
+function toast(msg, ms = 2800) {
+  clearTimeout(_toastTimer);
+  const node = el('toast');
+  node.textContent = msg;
+  node.classList.add('show');
+  _toastTimer = setTimeout(() => node.classList.remove('show'), ms);
+}
+
+function track(name, data = {}) {
+  if (!CONFIG.api.analyticsUrl) return;
+  fetch(CONFIG.api.analyticsUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event: name, lang: STATE.lang, ...data })
+  }).catch(() => {});
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   ★★★ THREE.JS PARALLAX DEPTH SYSTEM ★★★
+
+   Architecture:
+     #ar-dish-container  (THREE.Group)
+       ├── glowMesh      bg layer  pos.z=-0.15  slow rotation
+       └── dishMesh      fg layer  pos.z=0      foreground
+
+   Raycasting on #arOverlay clicks fires openBlade().
+   Hot-swap: switchDish(dish) replaces the dishMesh texture live.
+───────────────────────────────────────────────────────────────── */
+
+/** Build a golden radial glow + steam wisp texture entirely on a canvas. */
+function makeGlowTexture() {
+  const cv  = document.createElement('canvas');
+  cv.width  = 512;
+  cv.height = 512;
+  const ctx = cv.getContext('2d');
+
+  // Radial gold halo
+  const halo = ctx.createRadialGradient(256,256,0, 256,256,256);
+  halo.addColorStop(0,    'rgba(212,175,55,0.85)');
+  halo.addColorStop(0.28, 'rgba(200,145,40,0.55)');
+  halo.addColorStop(0.58, 'rgba(180,100,20,0.18)');
+  halo.addColorStop(1,    'rgba(0,0,0,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0,0,512,512);
+
+  // Steam wisps
+  const wisps = [[230,120,48],[280,95,36],[255,155,55],[220,175,42],[290,140,38],[245,105,52]];
+  wisps.forEach(([wx,wy,r]) => {
+    const g = ctx.createRadialGradient(wx,wy,0, wx,wy,r);
+    g.addColorStop(0, 'rgba(255,248,220,0.22)');
+    g.addColorStop(1, 'rgba(255,248,220,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,512,512);
+  });
+
+  // Outer soft bloom ring
+  const bloom = ctx.createRadialGradient(256,256,160, 256,256,256);
+  bloom.addColorStop(0,   'rgba(212,175,55,0)');
+  bloom.addColorStop(0.7, 'rgba(212,175,55,0.08)');
+  bloom.addColorStop(1,   'rgba(212,175,55,0.20)');
+  ctx.fillStyle = bloom;
+  ctx.fillRect(0,0,512,512);
+
+  return new THREE.CanvasTexture(cv);
+}
+
+function buildParallaxScene(dish) {
+  const canvas  = el('parallaxCanvas');
+  const W = window.innerWidth, H = window.innerHeight;
+
+  // Renderer — alpha:true keeps it transparent over the camera feed
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(52, W/H, 0.01, 100);
+  camera.position.z = 2.4;
+
+  /* ── #ar-dish-container ──────────────────────────────────── */
+  const arDishContainer = new THREE.Group();
+  arDishContainer.name = 'ar-dish-container';
+  scene.add(arDishContainer);
+
+  /* ── Background Layer: glow/steam ─────────────────────────── */
+  const glowMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.4, 2.4),
+    new THREE.MeshBasicMaterial({
+      map:         makeGlowTexture(),
+      transparent: true,
+      opacity:     0.75,
+      depthWrite:  false,
+      blending:    THREE.AdditiveBlending
+    })
+  );
+  glowMesh.position.z = -0.15;
+  glowMesh.name = 'ar-glow-layer';
+  arDishContainer.add(glowMesh);
+
+  /* ── Foreground Layer: dish image ────────────────────────── */
+  const dishMat   = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+  const dishMesh  = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), dishMat);
+  dishMesh.position.z = 0;
+  dishMesh.name = 'ar-dish-layer';
+  arDishContainer.add(dishMesh);
+
+  const loader = new THREE.TextureLoader();
+  loader.crossOrigin = 'anonymous';
+  function loadDishImage(url) {
+    loader.load(url,
+      (tex) => {
+        tex.minFilter = THREE.LinearFilter;
+        dishMat.map     = tex;
+        dishMat.opacity = 1;
+        dishMat.needsUpdate = true;
+      },
+      undefined,
+      () => { dishMat.opacity = 0.8; }
+    );
   }
-  const bridgeData = window.RESTAURANT_DATA;
-  if (bridgeData) {
-    console.log('[ApplyBridge] دمج البيانات من RESTAURANT_DATA');
-    const prefixUrl = (url) => {
-      if (!url || typeof url !== 'string') return url;
-      const trimmed = url.trim();
-      if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('//') || trimmed.startsWith('data:') || trimmed.startsWith('umami-prime/')) return trimmed;
-      return 'umami-prime/' + trimmed;
-    };
-    if (bridgeData.restaurant) {
-      Object.assign(CONFIG.restaurant, bridgeData.restaurant);
-      if (bridgeData.restaurant.heroImage) CONFIG.restaurant.heroImage = prefixUrl(bridgeData.restaurant.heroImage);
-      if (bridgeData.restaurant.portalImage) CONFIG.restaurant.portalImage = prefixUrl(bridgeData.restaurant.portalImage);
+  loadDishImage(dish.image);
+
+  /* ── Raycaster — wired to #arOverlay clicks ───────────────── */
+  const ray     = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const overlay = el('arOverlay');
+
+  function onHit(e) {
+    const src  = e.touches ? e.touches[0] : e;
+    const rect = canvas.getBoundingClientRect();
+    pointer.x  =  ((src.clientX - rect.left) / rect.width)  * 2 - 1;
+    pointer.y  = -((src.clientY - rect.top)  / rect.height) * 2 + 1;
+    ray.setFromCamera(pointer, camera);
+    const hits = ray.intersectObjects([dishMesh, glowMesh]);
+    if (hits.length) openBlade(STATE.currentDish || dish);
+  }
+  overlay.addEventListener('click',      onHit);
+  overlay.addEventListener('touchstart', onHit, { passive: true });
+
+  /* ── Mouse / Gyro parallax ──────────────────────────────── */
+  let tgtX = 0, tgtY = 0, curX = 0, curY = 0;
+
+  window.addEventListener('mousemove', (e) => {
+    tgtY = ((e.clientX / W) - 0.5) *  0.40;
+    tgtX = ((e.clientY / H) - 0.5) * -0.28;
+  });
+  window.addEventListener('deviceorientation', (e) => {
+    if (e.gamma != null) tgtY =  (e.gamma / 60) *  0.32;
+    if (e.beta  != null) tgtX = ((e.beta  - 45) / 45) * -0.22;
+  });
+
+  /* ── Animation loop ─────────────────────────────────────── */
+  const clock = new THREE.Clock();
+  let   raf   = null;
+
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    const elapsed = clock.getElapsedTime();
+
+    // Slow, continuous rotation on the background glow layer
+    glowMesh.rotation.z = elapsed * (Math.PI * 2 / 35);
+
+    // Parallax lerp
+    const L = 0.04;
+    curX += (tgtX - curX) * L;
+    curY += (tgtY - curY) * L;
+    arDishContainer.rotation.x = curX;
+    arDishContainer.rotation.y = curY;
+
+    renderer.render(scene, camera);
+  }
+  loop();
+
+  /* ── Resize ─────────────────────────────────────────────── */
+  function onResize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', onResize);
+
+  /* ── Public context ─────────────────────────────────────── */
+  return {
+    renderer, scene, camera,
+    arDishContainer, glowMesh, dishMesh,
+    loadDishImage,
+    raf, onResize, overlay, onHit,
+    destroy() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+      overlay.removeEventListener('click',      onHit);
+      overlay.removeEventListener('touchstart', onHit);
+      renderer.dispose();
     }
-    if (bridgeData.ar) {
-      if (bridgeData.ar.mindFile) CONFIG.ar.mindFile = prefixUrl(bridgeData.ar.mindFile);
-      if (typeof bridgeData.ar.demoMode !== 'undefined') CONFIG.ar.demoMode = bridgeData.ar.demoMode;
-    }
-    if (bridgeData.menu && Array.isArray(bridgeData.menu) && bridgeData.menu.length) {
-      CONFIG.menu = bridgeData.menu.map(dish => ({ ...dish, image: prefixUrl(dish.image), videoUrl: prefixUrl(dish.videoUrl) }));
-    } else {
-      CONFIG.menu = CONFIG.menu.map(dish => ({ ...dish, image: prefixUrl(dish.image), videoUrl: prefixUrl(dish.videoUrl) }));
-    }
+  };
+}
+
+/** Hot-swap the foreground dish texture (no scene rebuild needed). */
+function switchDish(dish) {
+  STATE.currentDish = dish;
+  if (STATE.pxCtx) STATE.pxCtx.loadDishImage(dish.image);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   ★★★ SIDE BLADE open / close
+   openBlade()  → populates all 5 blocks + adds .active
+   closeBlade() → removes .active (motion-elements reverse)
+   Updated for: bilingual EN/AR names, array allergens.
+───────────────────────────────────────────────────────────────── */
+function openBlade(dish) {
+  if (!dish) return;
+  STATE.bladeOpen   = true;
+  STATE.currentDish = dish;
+
+  const isAr = STATE.lang === 'ar';
+
+  /* ── Block 1: Title + Category ─────────────────────────────── */
+  el('bladeTitle').textContent    = (isAr && dish.nameArabic)     ? dish.nameArabic     : dish.name;
+  el('bladeCategory').textContent = (isAr && dish.categoryArabic) ? dish.categoryArabic : dish.category;
+
+  /* ── Block 2: Rating ────────────────────────────────────────── */
+  el('bladeStars').textContent    = '★'.repeat(Math.round(dish.rating));
+  el('bladeScore').textContent    = dish.rating.toFixed(1);
+  el('bladeRateCta').textContent  = t('rate_google');
+  el('googleMapsLink').href       = CONFIG.restaurant.googleMapsUrl;
+
+  /* ── Block 3: Price ─────────────────────────────────────────── */
+  el('bladePrice').textContent      = dish.price;
+  el('bladePriceLabel').textContent = t('price_label');
+
+  /* ── Block 4: Ingredients ───────────────────────────────────── */
+  el('bladeIngLabel').textContent = t('ingredients_label');
+  const ings = (isAr && dish.ingredientsArabic) ? dish.ingredientsArabic : dish.ingredients;
+  el('bladeIngText').textContent  = Array.isArray(ings) ? ings.join('  ·  ') : (ings || '—');
+
+  // Handle both string and array allergens
+  const allergenSrc = (isAr && dish.allergenArabic) ? dish.allergenArabic : dish.allergens;
+  const allergenStr = Array.isArray(allergenSrc)
+    ? allergenSrc.join(', ')
+    : (typeof allergenSrc === 'string' ? allergenSrc : '');
+  if (allergenStr) {
+    el('allergenText').textContent    = allergenStr;
+    el('allergenStrip').style.display = 'block';
   } else {
-    console.log('[ApplyBridge] لم يتم العثور على بيانات حقيقية، نستخدم الافتراضية مع إضافة البادئة');
-    const prefixUrl = (url) => {
-      if (!url || typeof url !== 'string') return url;
-      const trimmed = url.trim();
-      if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('//') || trimmed.startsWith('data:') || trimmed.startsWith('umami-prime/')) return trimmed;
-      return 'umami-prime/' + trimmed;
-    };
-    CONFIG.menu = CONFIG.menu.map(dish => ({ ...dish, image: prefixUrl(dish.image), videoUrl: prefixUrl(dish.videoUrl) }));
+    el('allergenStrip').style.display = 'none';
   }
-  // بعد الدمج نبدأ تشغيل التطبيق
-  startApplication();
-}, 100);
 
-// باقي الكود (STATE, UTILS, THREE.JS, FUNCTIONS, EVENT HANDLERS) كما هو تماماً من الملف الأصلي
-// ... (يتم وضع كل الدوال الأصلية هنا بدون أي تغيير)
-// ولكن نظراً للطول، سأعرض فقط الهيكل ثم أكمل في الرد الفعلي.
+  /* ── Block 5: Video CTA label ───────────────────────────────── */
+  el('videoCtaLabel').textContent = t('watch_video');
+
+  /* ── Gesture hint ───────────────────────────────────────────── */
+  el('gestureHint').textContent   = t('swipe');
+
+  /* ── ARIA ───────────────────────────────────────────────────── */
+  el('sideBlade').setAttribute('aria-hidden', 'false');
+
+  /* CSS cubic-bezier slide + motion-element stagger */
+  el('sideBlade').classList.add('active');
+  el('hudStatus').textContent = t('locked');
+
+  /* Touch swipe-right to dismiss */
+  document.addEventListener('touchstart', _swipeStart, { passive: true });
+  document.addEventListener('touchend',   _swipeEnd,   { passive: true });
+
+  track('dish_identified', { id: dish.id, name: dish.name });
+  toast(`${t('identified')}: ${dish.name}`);
+}
+
+function closeBlade() {
+  if (!STATE.bladeOpen) return;
+  STATE.bladeOpen   = false;
+  STATE.currentDish = null;
+
+  el('sideBlade').classList.remove('active');
+  el('sideBlade').setAttribute('aria-hidden', 'true');
+  el('hudStatus').textContent = t('tracking');
+
+  document.removeEventListener('touchstart', _swipeStart);
+  document.removeEventListener('touchend',   _swipeEnd);
+
+  track('dish_dismissed');
+}
+
+/* Swipe-right gesture: diffX > 90 → close */
+function _swipeStart(e) { STATE.touchStartX = e.touches[0].clientX; }
+function _swipeEnd(e) {
+  if (!STATE.bladeOpen) return;
+  const diff = e.changedTouches[0].clientX - STATE.touchStartX;
+  if (diff > 90) closeBlade();
+}
+
 
 /* ─────────────────────────────────────────────────────────────────
-   STATE, UTILS, THREE.JS PARALLAX, SIDE BLADE, i18n, CAMERA, etc.
-   كلها موجودة في الملف الأصلي، وسأضمنها كاملة في النسخة النهائية.
+   i18n — update static labels after language change
 ───────────────────────────────────────────────────────────────── */
-// [سيتم تضمين جميع الدوال الأصلية هنا بالكامل]
+function applyLang() {
+  const lang = STATE.lang;
+  document.documentElement.lang = lang;
+  document.documentElement.dir  = lang === 'ar' ? 'rtl' : 'ltr';
+
+  el('launchBrand').textContent   = t('brand');
+  el('launchTagline').textContent = t('tagline');
+  el('launchSub').textContent     = t('subtitle');
+  el('gestureHint').textContent   = t('swipe');
+  el('hudName').textContent       = t('brand').substring(0,2).toUpperCase();
+
+  if (STATE.bladeOpen && STATE.currentDish) {
+    el('bladeRateCta').textContent    = t('rate_google');
+    el('bladePriceLabel').textContent = t('price_label');
+    el('bladeIngLabel').textContent   = t('ingredients_label');
+    el('videoCtaLabel').textContent   = t('watch_video');
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   CAMERA — live video feed for environment background + OCR source
+───────────────────────────────────────────────────────────────── */
+function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) return;
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false
+  })
+  .then(stream => {
+    const v = el('videoFeed');
+    v.srcObject = stream;
+    v.onloadedmetadata = () => v.play().catch(() => {});
+  })
+  .catch(err => console.warn('[Camera]', err));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   ★★★ OCR ENGINE — Primary AR Trigger Brain ★★★
+
+   Architecture:
+     1. Tesseract.js v4 worker (eng+ara, LSTM-only engine)
+     2. Every 2500 ms: capture video frame → canvas → JPEG dataURL
+     3. Tesseract recognizes text (handwriting-tolerant settings)
+     4. fuzzyMatchDish() matches OCR output against dish names (EN & AR)
+     5. On match: switchDish() + openBlade() → AR blade slides in
+     6. Viewfinder scan-line overlay provides live scanning feedback
+
+   Fuzzy matching strategy:
+     a. Normalise text (lowercase, strip punctuation)
+     b. Levenshtein similarity on full dish name
+     c. Word-level matching: key words from dish name in OCR text
+     d. Best-of-both score; triggers at SCORE_THRESHOLD = 0.52
+═══════════════════════════════════════════════════════════════════ */
+
+/* ── OCR state ────────────────────────────────────────────────── */
+let _ocrWorker   = null;
+let _ocrRunning  = false;
+let _ocrInterval = null;
+let _ocrCooldown = false;   // prevent re-triggering same dish immediately
+
+/* ── UI helper ───────────────────────────────────────────────── */
+function updateOcrStatus(status) {
+  const pill = el('ocrPill');
+  const span = el('ocrStatus');
+  if (!pill || !span) return;
+
+  const labels = {
+    init:     '… INIT OCR',
+    ready:    '◉ OCR READY',
+    scanning: '⟳ SCANNING',
+    locked:   '✓ DISH FOUND',
+    error:    '✕ OCR OFF'
+  };
+  span.textContent   = labels[status] || status.toUpperCase();
+  pill.dataset.status = status;
+
+  // Toggle viewfinder scan-line
+  const vf = el('ocrViewfinder');
+  if (vf) {
+    vf.classList.toggle('scanning', status === 'scanning');
+  }
+}
+
+/* ── Levenshtein distance ────────────────────────────────────── */
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  // Build row by row to save memory
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const curr = [i];
+    for (let j = 1; j <= n; j++) {
+      curr[j] = a[i-1] === b[j-1]
+        ? prev[j-1]
+        : 1 + Math.min(prev[j-1], prev[j], curr[j-1]);
+    }
+    prev = curr;
+  }
+  return prev[n];
+}
+
+/* ── Normalise string for comparison ────────────────────────── */
+function normaliseText(s) {
+  return (s || '')
+    .toLowerCase()
+    // keep Arabic Unicode block + Latin letters + spaces
+    .replace(/[^a-z\u0600-\u06ff\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* ── Word-level overlap score ────────────────────────────────── */
+function wordOverlap(candidateNorm, ocrNorm) {
+  const words = candidateNorm.split(' ').filter(w => w.length > 3);
+  if (!words.length) return 0;
+  let hits = 0;
+  for (const word of words) {
+    if (ocrNorm.includes(word)) hits++;
+  }
+  return hits / words.length;
+}
+
+/* ── Fuzzy similarity (normalised Levenshtein) ───────────────── */
+function stringSimilarity(a, b) {
+  const maxLen = Math.max(a.length, b.length);
+  if (!maxLen) return 1;
+  return (maxLen - levenshtein(a, b)) / maxLen;
+}
+
+/* ── Master fuzzy matcher ────────────────────────────────────── */
+const OCR_SCORE_THRESHOLD = 0.52;
+
+function fuzzyMatchDish(ocrRawText) {
+  if (!ocrRawText || ocrRawText.length < 3) return null;
+  const ocrNorm = normaliseText(ocrRawText);
+  if (ocrNorm.length < 3) return null;
+
+  let bestDish  = null;
+  let bestScore = 0;
+
+  for (const dish of CONFIG.menu) {
+    // Build candidate strings to test against (EN name, AR name, key words)
+    const candidates = [
+      dish.name,
+      dish.nameArabic || '',
+      // Also test individual significant words as partial candidates
+      ...(dish.name.split(' ').filter(w => w.length > 4)),
+      ...(dish.nameArabic ? dish.nameArabic.split(' ').filter(w => w.length > 3) : [])
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const candNorm = normaliseText(candidate);
+      if (!candNorm) continue;
+
+      // (a) Direct substring match (strongest signal)
+      if (ocrNorm.includes(candNorm)) {
+        bestDish  = dish;
+        bestScore = 1.0;
+        break;
+      }
+
+      // (b) Word-level overlap
+      const wordScore = wordOverlap(candNorm, ocrNorm);
+
+      // (c) Levenshtein on first N chars (handles partial OCR reads)
+      const sliceLen  = Math.min(ocrNorm.length, candNorm.length + 8);
+      const simScore  = stringSimilarity(ocrNorm.slice(0, sliceLen), candNorm) * 0.82;
+
+      const score = Math.max(wordScore, simScore);
+      if (score > bestScore) {
+        bestScore = score;
+        bestDish  = dish;
+      }
+    }
+
+    if (bestScore >= 1.0) break; // early exit on perfect match
+  }
+
+  return bestScore >= OCR_SCORE_THRESHOLD ? bestDish : null;
+}
+
+/* ── Capture current video frame as JPEG dataURL ─────────────── */
+function captureVideoFrame() {
+  const video = el('videoFeed');
+  if (!video || video.readyState < 2 || !video.videoWidth) return null;
+
+  const cv  = document.createElement('canvas');
+  cv.width  = video.videoWidth;
+  cv.height = video.videoHeight;
+  const ctx = cv.getContext('2d');
+
+  // Optional: mild contrast boost to help OCR on menu cards
+  ctx.filter = 'contrast(1.15) brightness(1.05)';
+  ctx.drawImage(video, 0, 0, cv.width, cv.height);
+
+  return cv.toDataURL('image/jpeg', 0.88);
+}
+
+/* ── Single OCR scan tick ────────────────────────────────────── */
+async function runOCRScan() {
+  // Guard: skip if already running, worker not ready, AR not started, or blade open
+  if (_ocrRunning || !_ocrWorker || !STATE.started) return;
+  if (STATE.bladeOpen || _ocrCooldown) return;
+
+  _ocrRunning = true;
+  updateOcrStatus('scanning');
+
+  try {
+    const frameDataUrl = captureVideoFrame();
+    if (!frameDataUrl) {
+      updateOcrStatus('ready');
+      _ocrRunning = false;
+      return;
+    }
+
+    // Recognise text in frame
+    const { data: { text, confidence } } = await _ocrWorker.recognize(frameDataUrl);
+
+    if (confidence > 12 && text && text.trim().length > 2) {
+      const matched = fuzzyMatchDish(text);
+      if (matched && !STATE.bladeOpen) {
+        // Dish detected — trigger blade
+        updateOcrStatus('locked');
+        _ocrCooldown = true;
+
+        switchDish(matched);
+        // Small delay so parallax image loads before blade reveals it
+        setTimeout(() => {
+          if (!STATE.bladeOpen) openBlade(matched);
+        }, 180);
+
+        // Re-arm after cooldown period (avoid spamming same dish)
+        setTimeout(() => { _ocrCooldown = false; }, 8000);
+        toast(`🔍 ${t('ocr_detected')}: ${matched.name}`);
+      } else {
+        updateOcrStatus('ready');
+      }
+    } else {
+      updateOcrStatus('ready');
+    }
+  } catch (err) {
+    console.warn('[OCR] Scan error:', err);
+    updateOcrStatus('ready');
+  }
+
+  _ocrRunning = false;
+}
+
+/* ── Initialise Tesseract worker ─────────────────────────────── */
+async function initOCR() {
+  updateOcrStatus('init');
+
+  if (typeof Tesseract === 'undefined') {
+    console.warn('[OCR] Tesseract.js not loaded');
+    updateOcrStatus('error');
+    return false;
+  }
+
+  try {
+    /*
+     * createWorker(lang, oem, options)
+     *   lang = 'eng+ara'   — English + Arabic bilingual pack
+     *   oem  = 1           — LSTM-only (best accuracy, handles handwriting)
+     *
+     * Tesseract.js v4 auto-downloads tessdata from CDN on first run.
+     * High-confidence settings for printed + handwritten menus.
+     */
+    _ocrWorker = await Tesseract.createWorker('eng+ara', 1, {
+      logger: () => {}  // suppress verbose logs in production
+    });
+
+    await _ocrWorker.setParameters({
+      tessedit_ocr_engine_mode:      '1',   // LSTM only — best for handwriting
+      tessedit_pageseg_mode:         '3',   // Auto pageseg — best for real-world frames
+      preserve_interword_spaces:     '1',
+      tessedit_char_whitelist:       '',    // allow all characters (EN + AR)
+      // Boost confidence on mixed scripts
+      textord_min_linesize:          '2'
+    });
+
+    console.log('[OCR] Tesseract worker ready — eng+ara, LSTM mode');
+    updateOcrStatus('ready');
+    return true;
+
+  } catch (err) {
+    console.warn('[OCR] Worker initialisation failed:', err);
+    updateOcrStatus('error');
+    return false;
+  }
+}
+
+/* ── Start OCR polling loop ──────────────────────────────────── */
+async function startOCR() {
+  const ok = await initOCR();
+  if (!ok) return;
+
+  // Show the viewfinder brackets now that OCR is active
+  const vf = el('ocrViewfinder');
+  if (vf) vf.classList.add('on');
+
+  // Poll every 2500 ms
+  _ocrInterval = setInterval(runOCRScan, 2500);
+  console.log('[OCR] Polling started — interval 2500 ms');
+}
+
+/* ── Stop OCR gracefully (e.g. when page hides) ─────────────── */
+async function stopOCR() {
+  clearInterval(_ocrInterval);
+  _ocrInterval = null;
+  if (_ocrWorker) {
+    await _ocrWorker.terminate().catch(() => {});
+    _ocrWorker = null;
+  }
+  updateOcrStatus('init');
+}
+
+// Pause OCR when tab hidden; resume on visibility
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearInterval(_ocrInterval);
+    _ocrInterval = null;
+  } else if (_ocrWorker && STATE.started) {
+    _ocrInterval = setInterval(runOCRScan, 2500);
+  }
+});
+
+
+/* ─────────────────────────────────────────────────────────────────
+   AR CYCLE — demo mode rotates through menu items (secondary trigger)
+   OCR is the primary brain. Demo cycle is a visual fallback that keeps
+   the 3-D parallax populated between real OCR detections.
+
+   In production: replace with MindAR anchor callbacks.
+
+   MindAR integration stub (uncomment when .mind file is ready):
+
+     const mindar = new window.MINDAR.IMAGE.MindARThree({
+       container: document.body,
+       imageTargetSrc: CONFIG.ar.mindFile
+     });
+     CONFIG.menu.forEach((dish) => {
+       const anchor = mindar.addAnchor(dish.targetIndex);
+       anchor.onTargetFound = () => { switchDish(dish); openBlade(dish); };
+       anchor.onTargetLost  = () => closeBlade();
+     });
+     await mindar.start();
+───────────────────────────────────────────────────────────────── */
+function startDemoCycle() {
+  let idx = 0;
+  const dishes = CONFIG.menu;
+
+  // Prime first dish immediately so parallax has something to render
+  switchDish(dishes[0]);
+  el('hudStatus').textContent = t('tracking');
+
+  setInterval(() => {
+    // Demo cycle only rotates parallax image — does NOT auto-open blade.
+    // That is OCR's job. Demo cycle is purely visual background rotation.
+    if (!STATE.started || STATE.bladeOpen || _ocrCooldown) return;
+    idx = (idx + 1) % dishes.length;
+    switchDish(dishes[idx]);
+  }, 12000);
+}
+
+window.addEventListener('deviceorientation', (e) => {
+  const beta = Math.abs(e.beta || 0);
+  STATE.deviceTiltOK = beta >= CONFIG.ar.tiltMin && beta <= CONFIG.ar.tiltMax;
+});
+
+
+/* ─────────────────────────────────────────────────────────────────
+   START AR EXPERIENCE (called when portal button is tapped)
+───────────────────────────────────────────────────────────────── */
+function startAR() {
+  STATE.started = true;
+
+  el('videoFeed').classList.add('on');
+  el('parallaxCanvas').classList.add('on');
+  el('arOverlay').classList.add('on');
+  el('hudBar').classList.add('on');
+
+  startCamera();
+
+  // Request gyro permission on iOS 13+
+  if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(p => { if (p === 'granted') STATE.deviceTiltOK = true; })
+      .catch(() => {});
+  }
+
+  STATE.pxCtx = buildParallaxScene(CONFIG.menu[0]);
+
+  // ★ Demo cycle keeps parallax image rotating (visual fallback)
+  if (CONFIG.ar.demoMode) startDemoCycle();
+
+  // ★★★ PRIMARY TRIGGER: Start OCR engine listening to the camera feed
+  startOCR();
+
+  track('ar_started');
+  toast(t('tap_dish'));
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   LAUNCH SCREEN INIT
+───────────────────────────────────────────────────────────────── */
+function initLaunch() {
+  applyLang();
+
+  el('launchBg').style.backgroundImage  = `url('${CONFIG.restaurant.heroImage}')`;
+  el('portalImg').style.backgroundImage = `url('${CONFIG.restaurant.portalImage}')`;
+
+  el('portalBtn').addEventListener('click', () => {
+    track('portal_tapped');
+    el('launchScreen').classList.add('hidden');
+    setTimeout(startAR, 240);
+  });
+
+  // Language selector
+  document.querySelectorAll('.lang-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.lang-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      STATE.lang = btn.dataset.lang;
+      applyLang();
+      track('lang_changed', { lang: STATE.lang });
+    });
+  });
+
+  // Info / menu corner buttons
+  el('btnInfo').addEventListener('click', () =>
+    toast(`📍 ${CONFIG.restaurant.location}  ·  📞 ${CONFIG.restaurant.phone}`)
+  );
+  el('btnMenu').addEventListener('click', () =>
+    toast(`🍱 UMAMI PRIME — ${CONFIG.restaurant.michelin} Michelin  ·  Omakase 8 Courses`)
+  );
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   EVENT WIRING — Blade controls, modal, share
+───────────────────────────────────────────────────────────────── */
+
+// Close blade
+el('bladeClose').addEventListener('click', closeBlade);
+
+// Video CTA → modal
+el('videoCta').addEventListener('click', () => {
+  if (!STATE.currentDish) return;
+  el('modalVideo').src = STATE.currentDish.videoUrl;
+  el('videoModal').classList.add('open');
+  el('modalVideo').play().catch(() => {});
+  track('video_opened', { dish: STATE.currentDish.name });
+});
+
+// Modal close
+el('modalClose').addEventListener('click', () => {
+  el('videoModal').classList.remove('open');
+  el('modalVideo').pause();
+  el('modalVideo').src = '';
+});
+el('videoModal').addEventListener('click', (e) => {
+  if (e.target === el('videoModal')) el('modalClose').click();
+});
+
+// Social share
+el('shareIG').addEventListener('click', () => {
+  if (!STATE.currentDish) return;
+  window.open(
+    `https://www.instagram.com/?caption=${encodeURIComponent('Discover ' + STATE.currentDish.name + ' at UMAMI PRIME!')}`,
+    '_blank'
+  );
+  track('shared', { platform: 'instagram', dish: STATE.currentDish.name });
+});
+el('shareWA').addEventListener('click', () => {
+  if (!STATE.currentDish) return;
+  window.open(
+    `https://wa.me/?text=${encodeURIComponent(STATE.currentDish.name + ' — ' + window.location.href)}`,
+    '_blank'
+  );
+  track('shared', { platform: 'whatsapp', dish: STATE.currentDish.name });
+});
+el('shareMail').addEventListener('click', () => {
+  if (!STATE.currentDish) return;
+  window.open(
+    `mailto:?subject=${encodeURIComponent('Discover ' + STATE.currentDish.name)}&body=${encodeURIComponent(window.location.href)}`,
+    '_blank'
+  );
+  track('shared', { platform: 'email', dish: STATE.currentDish.name });
+});
+
+// Keyboard shortcuts
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (el('videoModal').classList.contains('open')) { el('modalClose').click(); return; }
+    if (STATE.bladeOpen) { closeBlade(); return; }
+  }
+  // Space bar → enter AR from launch screen
+  if (e.key === ' ' && !STATE.started) {
+    el('launchScreen').classList.add('hidden');
+    setTimeout(startAR, 240);
+  }
+  // Dev: press 1/2/3 to trigger dishes directly (bypasses OCR for testing)
+  if (['1','2','3'].includes(e.key) && STATE.started) {
+    const d = CONFIG.menu[+e.key - 1];
+    if (d) {
+      if (STATE.bladeOpen) closeBlade();
+      setTimeout(() => { switchDish(d); openBlade(d); }, 120);
+    }
+  }
+  // Dev: press O to force a manual OCR scan tick
+  if (e.key === 'o' && STATE.started) {
+    runOCRScan();
+  }
+});
+
+
+/* ─────────────────────────────────────────────────────────────────
+   BOOT
+───────────────────────────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', async () => {
+  // Optional: pull live menu from API
+  if (CONFIG.api.menuUrl) {
+    try {
+      const res = await fetch(CONFIG.api.menuUrl);
+      if (res.ok) CONFIG.menu = await res.json();
+    } catch { /* use defaults */ }
+  }
+  initLaunch();
+  track('app_loaded', { version: '2.0', lang: STATE.lang, restaurant: CONFIG.restaurant.id });
+  toast('WELCOME TO UMAMI PRIME');
+});
 </script>
 </body>
 </html>
