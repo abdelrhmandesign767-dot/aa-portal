@@ -16,8 +16,23 @@
   <!-- Three.js (r128) from JSDelivr -->
   <script src="https://cdn.jsdelivr.net/npm/three@r128/build/three.min.js"></script>
 
-  <!-- Tesseract.js from JSDelivr -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+  <!--
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║  TESSERACT v2.4.0 — ARCHITECTURAL FIX                           ║
+    ║                                                                  ║
+    ║  REASON FOR DOWNGRADE FROM v4 → v2:                             ║
+    ║  v4 uses ES Module workers which are blocked by mobile browsers ║
+    ║  (Samsung Internet, UC Browser, older iOS Safari) due to        ║
+    ║  strict CORS + worker-type:module policies. The symptom is      ║
+    ║  "Tesseract Worker Error: [object Event]" — the browser fires   ║
+    ║  an Event (not a real Error) when the worker script is          ║
+    ║  rejected at the network/security level before JS even runs.    ║
+    ║                                                                  ║
+    ║  v2.4.0 uses classic Blob workers + WASM, which are universally ║
+    ║  supported on all mobile browsers including iOS Safari 12+.     ║
+    ╚══════════════════════════════════════════════════════════════════╝
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v2.4.0/dist/tesseract.min.js"></script>
 
   <style>
     /* ═══════════════════════════════════════════════════════════════
@@ -91,12 +106,6 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════
-       ██████╗ ██╗ █████╗  ██████╗ ███╗   ██╗ ██████╗ ███████╗████████╗██╗ ██████╗
-       ██╔══██╗██║██╔══██╗██╔════╝ ████╗  ██║██╔═══██╗██╔════╝╚══██╔══╝██║██╔════╝
-       ██║  ██║██║███████║██║  ███╗██╔██╗ ██║██║   ██║███████╗   ██║   ██║██║
-       ██║  ██║██║██╔══██║██║   ██║██║╚██╗██║██║   ██║╚════██║   ██║   ██║██║
-       ██████╔╝██║██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝███████║   ██║   ██║╚██████╗
-       ╚═════╝ ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝   ╚═╝   ╚═╝ ╚═════╝
        ON-SCREEN DIAGNOSTIC CONSOLE — z-index 99999, bottom 30%
     ═══════════════════════════════════════════════════════════════ */
     #diagConsole {
@@ -104,14 +113,13 @@
       bottom: 0; left: 0; right: 0;
       height: 30vh;
       z-index: 99999;
-      background: rgba(0, 0, 0, 0.82);
+      background: rgba(0, 0, 0, 0.88);
       border-top: 1px solid rgba(212, 175, 55, 0.35);
       backdrop-filter: blur(6px);
       display: flex;
       flex-direction: column;
       overflow: hidden;
       font-family: 'Courier New', Courier, monospace;
-      /* Ensure it floats above everything including grain overlay */
     }
 
     #diagConsoleHeader {
@@ -130,6 +138,30 @@
       letter-spacing: 3px;
       color: #d4af37;
       text-transform: uppercase;
+    }
+
+    /* Pre-warm status badge next to title */
+    #prewarmBadge {
+      font-size: 8px;
+      letter-spacing: 1px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 8px;
+      font-weight: bold;
+      background: rgba(255,224,130,0.15);
+      border: 1px solid rgba(255,224,130,0.3);
+      color: #ffe082;
+      transition: background 0.3s, color 0.3s, border-color 0.3s;
+    }
+    #prewarmBadge.ready {
+      background: rgba(77,184,122,0.18);
+      border-color: rgba(77,184,122,0.45);
+      color: #4db87a;
+    }
+    #prewarmBadge.error {
+      background: rgba(224,90,90,0.18);
+      border-color: rgba(224,90,90,0.45);
+      color: #e05a5a;
     }
 
     #diagConsoleBtns {
@@ -173,6 +205,7 @@
     .diag-line.error { color: #ef9a9a; font-weight: bold; }
     .diag-line.crit  { color: #ff5252; font-weight: bold; background: rgba(255,82,82,0.12); padding: 2px 4px; border-radius: 2px; }
     .diag-line.info  { color: #80deea; }
+    .diag-line.sys   { color: #ce93d8; }  /* purple for [SYSTEM] entries */
 
     /* ═══════════════════════════════════════════════════════════════
        LAUNCH SCREEN
@@ -304,11 +337,8 @@
       cursor: pointer; padding: 4px 10px; border-radius: 12px;
       transition: all 0.25s ease;
     }
-    .lang-opt.active {
-      background: var(--gold-dim);
-      color: var(--gold);
-    }
-    .lang-opt:hover { color: var(--gold); }
+    .lang-opt.active { background: var(--gold-dim); color: var(--gold); }
+    .lang-opt:hover  { color: var(--gold); }
 
     /* ─────────────────────────────────────────────────────────────────
        AR STACK — video, canvas, overlay
@@ -327,7 +357,7 @@
       opacity: 0;
       transition: opacity 0.8s var(--ease-out-expo);
     }
-    #parallaxCanvas.on { display: block; }
+    #parallaxCanvas.on    { display: block; }
     #parallaxCanvas.fade-in { opacity: 1; }
 
     #arOverlay {
@@ -352,13 +382,10 @@
       animation: scanMove 1.2s ease-in-out infinite;
       pointer-events: none;
     }
-    #ocrScanLine.scanning {
-      display: block;
-      opacity: 0.7;
-    }
+    #ocrScanLine.scanning { display: block; opacity: 0.7; }
     @keyframes scanMove {
-      0% { top: 20%; opacity: 0; }
-      50% { opacity: 0.8; }
+      0%   { top: 20%; opacity: 0; }
+      50%  { opacity: 0.8; }
       100% { top: 80%; opacity: 0; }
     }
 
@@ -374,16 +401,12 @@
     }
     #hudBar.on { display: flex; }
 
-    .hud-left {
-      display: flex; align-items: center; gap: var(--s4);
-    }
-
-    .hud-name {
+    .hud-left  { display: flex; align-items: center; gap: var(--s4); }
+    .hud-name  {
       font-family: 'Cormorant Garamond', serif;
       font-size: var(--t-sm); font-weight: 600;
       letter-spacing: 4px; color: var(--gold);
     }
-
     .hud-status {
       font-size: var(--t-2xs); color: var(--text-lo);
       letter-spacing: 2px; text-transform: uppercase;
@@ -395,8 +418,7 @@
       background: rgba(0,0,0,0.55);
       border: 1px solid var(--border-hair);
       border-radius: 20px;
-      font-size: var(--t-2xs);
-      color: var(--text-lo);
+      font-size: var(--t-2xs); color: var(--text-lo);
       transition: all 0.3s ease;
     }
     #ocrPill[data-status="ready"]    { border-color: var(--success); color: var(--success); }
@@ -457,40 +479,29 @@
       font-size: var(--t-2xs); color: var(--gold); letter-spacing: 4px;
       text-transform: uppercase;
     }
-
     .blade-block {
-      margin-top: var(--s5);
-      padding-top: var(--s4);
+      margin-top: var(--s5); padding-top: var(--s4);
       border-top: 1px solid var(--border-hair);
     }
     .blade-block:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
-
     .blade-label {
       font-size: var(--t-2xs); color: var(--text-lo);
-      letter-spacing: 3px; text-transform: uppercase;
-      margin-bottom: var(--s2);
+      letter-spacing: 3px; text-transform: uppercase; margin-bottom: var(--s2);
     }
-
-    .blade-value { font-size: var(--t-md); color: var(--text-hi); font-weight: 500; }
-
-    .blade-price {
+    .blade-value  { font-size: var(--t-md); color: var(--text-hi); font-weight: 500; }
+    .blade-price  {
       font-family: 'Cormorant Garamond', serif;
       font-size: var(--t-2xl); font-weight: 700;
       color: var(--gold); margin-top: var(--s3);
     }
-
     .blade-ing-text {
       font-size: var(--t-sm); color: var(--text-mid);
       line-height: 1.6; margin-top: var(--s3);
     }
-
     .blade-cta {
-      margin-top: var(--s5);
-      padding: 12px 21px;
-      background: var(--gold-dim);
-      border: 1px solid var(--gold-mid);
-      color: var(--gold);
-      font-size: var(--t-sm); font-weight: 500;
+      margin-top: var(--s5); padding: 12px 21px;
+      background: var(--gold-dim); border: 1px solid var(--gold-mid);
+      color: var(--gold); font-size: var(--t-sm); font-weight: 500;
       border-radius: 8px; cursor: pointer;
       transition: all 0.25s ease; text-align: center;
     }
@@ -502,13 +513,12 @@
       background: rgba(212,175,55,0.08);
       border: 1px solid var(--border-hair);
       color: var(--text-lo); border-radius: 6px;
-      cursor: pointer; font-size: 16px;
-      transition: all 0.25s ease;
+      cursor: pointer; font-size: 16px; transition: all 0.25s ease;
     }
     .share-btn:hover { background: var(--gold-dim); color: var(--gold); border-color: var(--gold); }
 
     /* ─────────────────────────────────────────────────────────────────
-       TOAST
+       TOAST  — raised above the diagnostic panel
     ───────────────────────────────────────────────────────────────── */
     #toast {
       position: fixed; bottom: calc(30vh + 10px); left: 50%;
@@ -517,12 +527,11 @@
       padding: var(--s3) var(--s5);
       background: rgba(0,0,0,0.85);
       border: 1px solid var(--border-hair);
-      border-radius: 8px;
-      color: var(--text-hi);
-      font-size: var(--t-sm);
-      backdrop-filter: blur(10px);
+      border-radius: 8px; color: var(--text-hi);
+      font-size: var(--t-sm); backdrop-filter: blur(10px);
       opacity: 0; pointer-events: none;
       transition: opacity 0.3s ease;
+      white-space: nowrap;
     }
     #toast.show { opacity: 1; pointer-events: auto; }
 
@@ -542,12 +551,13 @@
 <body>
 
   <!-- ═══════════════════════════════════════════════════════════════
-       DIAGNOSTIC CONSOLE — Injected by QA Engineer
-       Floats above everything. z-index: 99999.
+       DIAGNOSTIC CONSOLE — z-index 99999
+       Floats above grain overlay (9999), toast (50000), everything.
   ═══════════════════════════════════════════════════════════════ -->
   <div id="diagConsole">
     <div id="diagConsoleHeader">
       <span id="diagConsoleTitle">⚡ DIAGNOSTIC CONSOLE</span>
+      <span id="prewarmBadge">OCR: WARMING...</span>
       <div id="diagConsoleBtns">
         <button class="diag-btn" id="diagClearBtn">CLEAR</button>
         <button class="diag-btn" id="diagToggleBtn">HIDE</button>
@@ -565,11 +575,11 @@
 
     <div class="launch-body">
       <h1 class="launch-wordmark" id="wordmark">AR GASTRONOMY</h1>
-      <p class="launch-tagline" id="tagline">Discover Culinary Artistry</p>
-      <p class="launch-sub" id="launchSub">Premium Dining Experience</p>
+      <p class="launch-tagline"  id="tagline">Discover Culinary Artistry</p>
+      <p class="launch-sub"      id="launchSub">Premium Dining Experience</p>
 
       <div class="portal-ring" id="portalBtn">
-        <div class="portal-img" id="portalImg"></div>
+        <div class="portal-img"  id="portalImg"></div>
         <div class="portal-scrim"></div>
         <div class="portal-icon">📷</div>
       </div>
@@ -584,7 +594,7 @@
 
     <div class="lang-pill">
       <button class="lang-opt active" data-lang="en">EN</button>
-      <button class="lang-opt" data-lang="ar">العربية</button>
+      <button class="lang-opt"        data-lang="ar">العربية</button>
     </div>
   </div>
 
@@ -594,26 +604,17 @@
 
   <!--
     ╔══════════════════════════════════════════════════════════════╗
-    ║  MOBILE VIDEO FIX — CRITICAL FOR iOS Safari                  ║
-    ║  All three attributes are REQUIRED:                          ║
-    ║  • playsinline  → iOS Safari will NOT draw to canvas        ║
-    ║                   without this. The video plays in a         ║
-    ║                   native fullscreen overlay instead,         ║
-    ║                   making every ctx.drawImage() return        ║
-    ║                   a blank/black frame silently.              ║
-    ║  • autoplay     → Required to start without user gesture     ║
-    ║  • muted        → Required for autoplay to work on mobile    ║
+    ║  MOBILE VIDEO FIX — ALL THREE ATTRIBUTES ARE MANDATORY      ║
+    ║  playsinline → stops iOS Safari routing video to native     ║
+    ║                fullscreen, which blacks out drawImage()      ║
+    ║  muted       → required for autoplay policy on all mobile   ║
+    ║  autoplay    → starts stream without gesture gate           ║
     ╚══════════════════════════════════════════════════════════════╝
   -->
   <video id="videoFeed" playsinline autoplay muted></video>
 
-  <!-- OCR Scanning Animation -->
   <div id="ocrScanLine"></div>
-
-  <!-- 3D Parallax Canvas (THREE.js) -->
   <canvas id="parallaxCanvas"></canvas>
-
-  <!-- AR Overlay -->
   <div id="arOverlay"></div>
 
   <!-- HUD Bar -->
@@ -632,29 +633,24 @@
     <button class="blade-x" id="bladeClose">✕</button>
 
     <div class="motion-element delay-1">
-      <div class="blade-title" id="bladeTitle">Dish Name</div>
+      <div class="blade-title"    id="bladeTitle">Dish Name</div>
       <span class="blade-category" id="bladeCategory">CATEGORY</span>
     </div>
-
     <div class="blade-block motion-element delay-2">
-      <div class="blade-label" id="bladePriceLabel">Price</div>
-      <div class="blade-price" id="bladePrice">$00.00</div>
+      <div class="blade-label"  id="bladePriceLabel">Price</div>
+      <div class="blade-price"  id="bladePrice">$00.00</div>
     </div>
-
     <div class="blade-block motion-element delay-3">
-      <div class="blade-label" id="bladeRateLabel">Rating</div>
-      <div class="blade-value" id="bladeScore">★★★★★</div>
+      <div class="blade-label"  id="bladeRateLabel">Rating</div>
+      <div class="blade-value"  id="bladeScore">★★★★★</div>
     </div>
-
     <div class="blade-block motion-element delay-4">
-      <div class="blade-label" id="bladeIngLabel">Key Ingredients</div>
+      <div class="blade-label"   id="bladeIngLabel">Key Ingredients</div>
       <div class="blade-ing-text" id="bladeIngText">•  •  •</div>
     </div>
-
     <button class="blade-cta motion-element delay-4" id="videoCta" title="Watch">
       📹 Watch Preparation
     </button>
-
     <div class="share-row motion-element delay-4">
       <button class="share-btn" id="shareIG"   title="Share on Instagram">📸</button>
       <button class="share-btn" id="shareWA"   title="Share on WhatsApp">💬</button>
@@ -662,175 +658,151 @@
     </div>
   </div>
 
-  <!-- Toast Notifications -->
+  <!-- Toast -->
   <div id="toast"></div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   ██████╗ ██╗ █████╗  ██████╗ ███╗   ██╗ ██████╗ ███████╗████████╗██╗ ██████╗
-   ON-SCREEN DIAGNOSTIC CONSOLE — Override console.log/warn/error
-   Must be bootstrapped FIRST before any other code runs.
+   BLOCK 1 — ON-SCREEN DIAGNOSTIC CONSOLE
+   Bootstrapped FIRST. Overrides console before any app code runs.
 ═══════════════════════════════════════════════════════════════ */
-(function() {
+(function () {
   'use strict';
 
-  const diagLog    = document.getElementById('diagLog');
-  const clearBtn   = document.getElementById('diagClearBtn');
-  const toggleBtn  = document.getElementById('diagToggleBtn');
-  const diagPanel  = document.getElementById('diagConsole');
-  let   isHidden   = false;
+  const diagLog   = document.getElementById('diagLog');
+  const clearBtn  = document.getElementById('diagClearBtn');
+  const toggleBtn = document.getElementById('diagToggleBtn');
+  const diagPanel = document.getElementById('diagConsole');
+  const badge     = document.getElementById('prewarmBadge');
+  let   isHidden  = false;
 
-  /* ── Append a line to the on-screen log ─────────────────────── */
+  /* ── Append a styled line ────────────────────────────────────── */
   function appendLine(level, args) {
     const line = document.createElement('div');
     line.className = 'diag-line ' + level;
 
-    // Format timestamp  HH:MM:SS.mmm
-    const now    = new Date();
-    const hh     = String(now.getHours()).padStart(2, '0');
-    const mm     = String(now.getMinutes()).padStart(2, '0');
-    const ss     = String(now.getSeconds()).padStart(2, '0');
-    const ms     = String(now.getMilliseconds()).padStart(3, '0');
-    const ts     = `${hh}:${mm}:${ss}.${ms}`;
+    const now = new Date();
+    const ts  = [now.getHours(), now.getMinutes(), now.getSeconds()]
+                  .map(n => String(n).padStart(2, '0')).join(':')
+                + '.' + String(now.getMilliseconds()).padStart(3, '0');
 
-    // Serialize arguments gracefully
     const msg = args.map(a => {
       if (a === null)            return 'null';
       if (a === undefined)       return 'undefined';
       if (a instanceof Error)    return `${a.name}: ${a.message}`;
-      if (typeof a === 'object') {
-        try { return JSON.stringify(a); } catch(e) { return String(a); }
-      }
+      if (typeof a === 'object') { try { return JSON.stringify(a); } catch(e) { return String(a); } }
       return String(a);
     }).join(' ');
 
     line.textContent = `[${ts}] ${msg}`;
 
-    // CRITICAL marker for zero-dimension video
-    if (msg.includes('CRITICAL')) {
-      line.className = 'diag-line crit';
-    }
+    // Escalate CRITICAL lines visually
+    if (msg.includes('CRITICAL')) line.className = 'diag-line crit';
+    // Purple for [SYSTEM] entries
+    if (msg.startsWith('[SYSTEM]')) line.className = 'diag-line sys';
 
     diagLog.appendChild(line);
-
-    // Auto-scroll to bottom
     diagLog.scrollTop = diagLog.scrollHeight;
 
-    // Cap at 300 lines to avoid memory explosion
-    while (diagLog.children.length > 300) {
-      diagLog.removeChild(diagLog.firstChild);
-    }
+    // Memory safety cap
+    while (diagLog.children.length > 400) diagLog.removeChild(diagLog.firstChild);
   }
 
-  /* ── Intercept native console methods ───────────────────────── */
+  /* ── Expose badge updater to outer scope ─────────────────────── */
+  window.__diagSetBadge = function(state, text) {
+    badge.textContent = 'OCR: ' + text;
+    badge.className   = state; // '' | 'ready' | 'error'
+  };
+
+  /* ── Wire console overrides ─────────────────────────────────── */
   const _log   = console.log.bind(console);
   const _warn  = console.warn.bind(console);
   const _error = console.error.bind(console);
 
-  console.log = function(...args) {
-    _log(...args);
-    appendLine('log', args);
-  };
-  console.warn = function(...args) {
-    _warn(...args);
-    appendLine('warn', args);
-  };
-  console.error = function(...args) {
-    _error(...args);
-    appendLine('error', args);
-  };
+  console.log = function (...a) { _log(...a);   appendLine('log',   a); };
+  console.warn  = function (...a) { _warn(...a);  appendLine('warn',  a); };
+  console.error = function (...a) { _error(...a); appendLine('error', a); };
 
-  /* ── Also catch uncaught JS errors and unhandled rejections ─── */
-  window.addEventListener('error', function(e) {
-    appendLine('error', [`[UNCAUGHT ERROR] ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`]);
+  /* ── Catch unhandled errors & rejected promises ─────────────── */
+  window.addEventListener('error', e => {
+    appendLine('error', [`[UNCAUGHT ERROR] ${e.message} @ ${e.filename}:${e.lineno}`]);
   });
-  window.addEventListener('unhandledrejection', function(e) {
-    const reason = e.reason instanceof Error
-      ? `${e.reason.name}: ${e.reason.message}`
-      : String(e.reason);
-    appendLine('error', [`[UNHANDLED PROMISE] ${reason}`]);
+  window.addEventListener('unhandledrejection', e => {
+    const r = e.reason instanceof Error ? `${e.reason.name}: ${e.reason.message}` : String(e.reason);
+    appendLine('error', [`[UNHANDLED PROMISE] ${r}`]);
   });
 
-  /* ── Clear button ────────────────────────────────────────────── */
-  clearBtn.addEventListener('click', function() {
+  /* ── Toolbar buttons ─────────────────────────────────────────── */
+  clearBtn.addEventListener('click', () => {
     diagLog.innerHTML = '';
     appendLine('info', ['[DIAG] Log cleared.']);
   });
-
-  /* ── Toggle visibility ───────────────────────────────────────── */
-  toggleBtn.addEventListener('click', function() {
+  toggleBtn.addEventListener('click', () => {
     isHidden = !isHidden;
     if (isHidden) {
-      diagLog.style.display = 'none';
-      diagPanel.style.height = '28px';
-      toggleBtn.textContent = 'SHOW';
+      diagLog.style.display    = 'none';
+      diagPanel.style.height   = '28px';
+      toggleBtn.textContent    = 'SHOW';
     } else {
-      diagLog.style.display = 'flex';
-      diagPanel.style.height = '30vh';
-      toggleBtn.textContent = 'HIDE';
+      diagLog.style.display    = 'flex';
+      diagPanel.style.height   = '30vh';
+      toggleBtn.textContent    = 'HIDE';
     }
   });
 
-  /* ── Announce console is live ────────────────────────────────── */
-  appendLine('info', ['[DIAG] On-screen console ACTIVE. All logs will appear here.']);
-  appendLine('info', [`[DIAG] UA: ${navigator.userAgent}`]);
-  appendLine('info', [`[DIAG] Screen: ${screen.width}x${screen.height} | Window: ${window.innerWidth}x${window.innerHeight}`]);
-  appendLine('info', [`[DIAG] Pixel Ratio: ${window.devicePixelRatio}`]);
-  appendLine('info', [`[DIAG] Tesseract global available: ${typeof Tesseract !== 'undefined'}`]);
-  appendLine('info', [`[DIAG] THREE.js global available: ${typeof THREE !== 'undefined'}`]);
+  /* ── Boot banner ─────────────────────────────────────────────── */
+  appendLine('info', ['[DIAG] ═══════════════════════════════════════']);
+  appendLine('info', ['[DIAG] On-screen console ACTIVE (v2-fix build)']);
+  appendLine('info', ['[DIAG] ═══════════════════════════════════════']);
+
+  /* ── SYSTEM checkpoint: Browser UA ─────────────────────────── */
+  appendLine('sys',  [`[SYSTEM] Browser UA: ${navigator.userAgent}`]);
+  appendLine('sys',  [`[SYSTEM] Screen: ${screen.width}x${screen.height} | DPR: ${window.devicePixelRatio}`]);
+  appendLine('sys',  [`[SYSTEM] Platform: ${navigator.platform || 'unknown'}`]);
+  appendLine('sys',  [`[SYSTEM] Language: ${navigator.language}`]);
+  appendLine('sys',  [`[SYSTEM] Online: ${navigator.onLine}`]);
+  appendLine('sys',  [`[SYSTEM] Protocol: ${location.protocol} (camera+worker need HTTPS)`]);
+  appendLine('info', [`[BOOT] Tesseract global present: ${typeof Tesseract !== 'undefined'}`]);
+  appendLine('info', [`[BOOT] THREE.js global present: ${typeof THREE !== 'undefined'}`]);
+  appendLine('info', [`[BOOT] Worker API available: ${typeof Worker !== 'undefined'}`]);
+  appendLine('info', [`[BOOT] MediaDevices available: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`]);
 })();
 
 /* ═══════════════════════════════════════════════════════════════
-   CONFIGURATION
+   BLOCK 2 — CONFIGURATION
 ═══════════════════════════════════════════════════════════════ */
 const CONFIG = {
   restaurant: {
-    name: 'UMAMI PRIME',
-    location: '📍 123 Gastronomy Ave, Dubai',
-    phone: '+971 4 XXX XXXX',
+    name:        'UMAMI PRIME',
+    location:    '📍 123 Gastronomy Ave, Dubai',
+    phone:       '+971 4 XXX XXXX',
     heroImage:   'https://images.unsplash.com/photo-1504674900850-4d69be8b7e58?w=1200&h=600&fit=crop',
     portalImage: 'https://images.unsplash.com/photo-1495000871168-a47a3a3bae48?w=400&h=400&fit=crop'
   },
   menu: [
     {
-      id: 1,
-      name: 'SAFFRON RISOTTO',
-      category: 'PRIMO',
-      price: '$42.00',
-      rating: '★★★★★',
+      id: 1, name: 'SAFFRON RISOTTO', category: 'PRIMO', price: '$42.00', rating: '★★★★★',
       image: 'https://images.unsplash.com/photo-1502869012803-1fca8ec53d02?w=600&h=600&fit=crop',
       keywords: ['saffron', 'risotto', 'rice', 'italian'],
       ingredients: ['Arborio Rice', 'Saffron Threads', 'Parmigiano Reggiano', 'White Wine', 'Butter'],
       videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
     },
     {
-      id: 2,
-      name: 'WAGYU TOMAHAWK',
-      category: 'CARNE',
-      price: '$85.00',
-      rating: '★★★★★',
+      id: 2, name: 'WAGYU TOMAHAWK', category: 'CARNE', price: '$85.00', rating: '★★★★★',
       image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=600&fit=crop',
       keywords: ['wagyu', 'tomahawk', 'steak', 'beef'],
       ingredients: ['Japanese Wagyu', 'Sea Salt', 'Black Garlic', 'Miso Butter', 'Microgreens'],
       videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
     },
     {
-      id: 3,
-      name: 'TRUFFLE AGNOLOTTI',
-      category: 'PASTA',
-      price: '$65.00',
-      rating: '★★★★★',
+      id: 3, name: 'TRUFFLE AGNOLOTTI', category: 'PASTA', price: '$65.00', rating: '★★★★★',
       image: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&h=600&fit=crop',
       keywords: ['truffle', 'agnolotti', 'pasta', 'italian'],
       ingredients: ['Black Truffle', 'Ricotta', 'Egg Pasta', 'Parmigiano', 'Brown Butter'],
       videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
     },
     {
-      id: 4,
-      name: 'MISO-GLAZED HALIBUT',
-      category: 'PESCE',
-      price: '$58.00',
-      rating: '★★★★☆',
+      id: 4, name: 'MISO-GLAZED HALIBUT', category: 'PESCE', price: '$58.00', rating: '★★★★☆',
       image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=600&fit=crop',
       keywords: ['halibut', 'miso', 'fish', 'seafood', 'glaze'],
       ingredients: ['Pacific Halibut', 'White Miso', 'Sake', 'Dashi', 'Sesame'],
@@ -838,255 +810,163 @@ const CONFIG = {
     }
   ],
   api: { menuUrl: null },
-  ar: {
-    demoMode: false,
-    tiltMin: 20,
-    tiltMax: 70,
-    mindFile: ''
-  },
-  ocr: {
-    scanIntervalMs: 2000,
-    fuzzyMatchThreshold: 0.5
-  }
+  ar:  { demoMode: false, tiltMin: 20, tiltMax: 70, mindFile: '' },
+  ocr: { scanIntervalMs: 2500, fuzzyMatchThreshold: 0.5 }
 };
 
-/* Global State */
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 3 — GLOBAL STATE & i18n
+═══════════════════════════════════════════════════════════════ */
 const STATE = {
-  lang: 'en',
-  started: false,
-  bladeOpen: false,
-  ocrReady: false,
-  currentDish: null,
-  pxCtx: null,
-  deviceTiltOK: false
+  lang: 'en', started: false, bladeOpen: false,
+  ocrReady: false, currentDish: null, pxCtx: null
 };
 
-/* Language Pack */
 const i18n = {
   en: {
-    brand: 'AR Gastronomy',
-    scanning: 'SCANNING...',
-    ready: 'READY',
-    locked: 'LOCKED',
-    tap_dish: 'Point camera at dish name to reveal details',
-    tracking: 'Tracking enabled',
-    swipe: 'Swipe to close',
-    rate_google: 'Rate on Google',
-    price_label: 'PRICE',
-    ingredients_label: 'KEY INGREDIENTS',
-    watch_video: 'Watch Preparation'
+    brand: 'AR Gastronomy', scanning: 'SCANNING...', ready: 'READY', locked: 'LOCKED',
+    tap_dish: 'Point camera at dish name', tracking: 'Tracking enabled',
+    price_label: 'PRICE', ingredients_label: 'KEY INGREDIENTS', watch_video: 'Watch Preparation'
   },
   ar: {
-    brand: 'AR غذائي',
-    scanning: 'جاري المسح...',
-    ready: 'جاهز',
-    locked: 'مقفل',
-    tap_dish: 'وجه الكاميرا إلى اسم الطبق',
-    tracking: 'التتبع مفعل',
-    swipe: 'اسحب للإغلاق',
-    rate_google: 'قيم على Google',
-    price_label: 'السعر',
-    ingredients_label: 'المكونات الرئيسية',
-    watch_video: 'شاهد التحضير'
+    brand: 'AR غذائي', scanning: 'جاري المسح...', ready: 'جاهز', locked: 'مقفل',
+    tap_dish: 'وجه الكاميرا إلى اسم الطبق', tracking: 'التتبع مفعل',
+    price_label: 'السعر', ingredients_label: 'المكونات الرئيسية', watch_video: 'شاهد التحضير'
   }
 };
 
-/* Utilities */
-const el = (id) => document.getElementById(id);
-
-function t(key) {
-  return i18n[STATE.lang]?.[key] || i18n.en[key] || key;
-}
+const el = id => document.getElementById(id);
+const t  = key => i18n[STATE.lang]?.[key] || i18n.en[key] || key;
 
 function toast(msg) {
-  const box = el('toast');
-  box.textContent = msg;
-  box.classList.add('show');
-  setTimeout(() => box.classList.remove('show'), 3000);
+  const b = el('toast');
+  b.textContent = msg;
+  b.classList.add('show');
+  setTimeout(() => b.classList.remove('show'), 3000);
 }
 
 function track(event, data = {}) {
   console.log(`[Track] ${event}`, data);
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   FUZZY MATCH ALGORITHM (Levenshtein distance)
-───────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 4 — FUZZY MATCH (Levenshtein)
+═══════════════════════════════════════════════════════════════ */
 function levenshteinDistance(a, b) {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-
-  const matrix = Array(b.length + 1)
-    .fill(null)
-    .map(() => Array(a.length + 1).fill(0));
-
-  for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
-  for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
-
-  for (let j = 1; j <= b.length; j++) {
-    for (let i = 1; i <= a.length; i++) {
-      const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1,
-        matrix[j - 1][i] + 1,
-        matrix[j - 1][i - 1] + indicator
-      );
-    }
-  }
-
-  const distance = matrix[b.length][a.length];
-  const maxLen = Math.max(a.length, b.length);
-  return 1 - distance / maxLen;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const m = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) m[0][i] = i;
+  for (let j = 0; j <= b.length; j++) m[j][0] = j;
+  for (let j = 1; j <= b.length; j++)
+    for (let i = 1; i <= a.length; i++)
+      m[j][i] = Math.min(m[j][i-1]+1, m[j-1][i]+1, m[j-1][i-1] + (a[i-1]===b[j-1] ? 0 : 1));
+  return 1 - m[b.length][a.length] / Math.max(a.length, b.length);
 }
 
 function fuzzyMatchDish(ocrText) {
-  const normalized = ocrText.toLowerCase().trim();
-  let bestMatch = null;
-  let bestScore = 0;
-
+  const n = ocrText.toLowerCase().trim();
+  let best = null, bestScore = 0;
   for (const dish of CONFIG.menu) {
-    const dishName     = dish.name.toLowerCase();
-    const dishKeywords = dish.keywords.map(k => k.toLowerCase());
-
-    let score = levenshteinDistance(normalized, dishName);
-
-    for (const keyword of dishKeywords) {
-      if (normalized.includes(keyword)) {
-        score = Math.max(score, 0.8);
-      }
-      const keywordScore = levenshteinDistance(normalized, keyword);
-      score = Math.max(score, keywordScore);
+    let score = levenshteinDistance(n, dish.name.toLowerCase());
+    for (const kw of dish.keywords.map(k => k.toLowerCase())) {
+      if (n.includes(kw)) score = Math.max(score, 0.8);
+      score = Math.max(score, levenshteinDistance(n, kw));
     }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = dish;
-    }
+    if (score > bestScore) { bestScore = score; best = dish; }
   }
-
-  return bestScore > CONFIG.ocr.fuzzyMatchThreshold ? { dish: bestMatch, score: bestScore } : null;
+  return bestScore > CONFIG.ocr.fuzzyMatchThreshold ? { dish: best, score: bestScore } : null;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   THREE.JS PARALLAX SCENE
-───────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 5 — THREE.JS PARALLAX SCENE
+═══════════════════════════════════════════════════════════════ */
 let parallaxCtx = null;
 
 function initParallax() {
   try {
     const canvas = el('parallaxCanvas');
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
+    const w = window.innerWidth, h = window.innerHeight;
+    const scene    = new THREE.Scene();
+    const camera   = new THREE.PerspectiveCamera(75, w/h, 0.1, 1000);
     camera.position.z = 2;
 
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: true,
-      antialias: true
-    });
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     renderer.setSize(w, h);
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(window.devicePixelRatio);
 
-    const glowGeom = new THREE.TorusGeometry(1.2, 0.08, 32, 100);
-    const glowMat  = new THREE.MeshPhongMaterial({
-      color: 0xd4af37,
-      emissive: 0xd4af37,
-      emissiveIntensity: 0.6
-    });
-    const glow = new THREE.Mesh(glowGeom, glowMat);
+    const glow = new THREE.Mesh(
+      new THREE.TorusGeometry(1.2, 0.08, 32, 100),
+      new THREE.MeshPhongMaterial({ color: 0xd4af37, emissive: 0xd4af37, emissiveIntensity: 0.6 })
+    );
     glow.rotation.x = 0.3;
     scene.add(glow);
 
-    const planeGeom = new THREE.PlaneGeometry(1.4, 1.4);
-    const dishMat   = new THREE.MeshPhongMaterial({
-      color: 0xffffff,
-      emissive: 0x222222,
-      emissiveIntensity: 0.3
-    });
-    const plane = new THREE.Mesh(planeGeom, dishMat);
+    const dishMat = new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0x222222, emissiveIntensity: 0.3 });
+    const plane   = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), dishMat);
     plane.position.z = 0.1;
     scene.add(plane);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-
-    const pointLight = new THREE.PointLight(0xd4af37, 0.8, 10);
-    pointLight.position.set(2, 2, 3);
-    scene.add(pointLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const pt = new THREE.PointLight(0xd4af37, 0.8, 10);
+    pt.position.set(2, 2, 3);
+    scene.add(pt);
 
     window.addEventListener('resize', () => {
-      const nw = window.innerWidth;
-      const nh = window.innerHeight;
-      camera.aspect = nw / nh;
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(nw, nh);
+      renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
     canvas.addEventListener('click', () => {
-      if (STATE.currentDish && !STATE.bladeOpen) {
-        openBlade(STATE.currentDish);
-      }
+      if (STATE.currentDish && !STATE.bladeOpen) openBlade(STATE.currentDish);
     });
 
-    function animate() {
+    (function animate() {
       requestAnimationFrame(animate);
       glow.rotation.z += 0.002;
       renderer.render(scene, camera);
-    }
-    animate();
+    })();
 
     return { renderer, dishMat };
   } catch (err) {
-    console.error('[Parallax]', err);
+    console.error('[Parallax] Init failed:', err.message);
     throw err;
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   DISH SWITCHING & BLADE CONTROL
-───────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 6 — DISH & BLADE CONTROL
+═══════════════════════════════════════════════════════════════ */
 function switchDish(dish) {
   STATE.currentDish = dish;
   if (!parallaxCtx) return;
-
   try {
     const loader = new THREE.TextureLoader();
     loader.crossOrigin = 'anonymous';
-    loader.load(
-      dish.image,
-      (tex) => {
-        parallaxCtx.dishMat.map = tex;
-        parallaxCtx.dishMat.needsUpdate = true;
-      },
+    loader.load(dish.image,
+      tex => { parallaxCtx.dishMat.map = tex; parallaxCtx.dishMat.needsUpdate = true; },
       undefined,
-      (err) => console.warn('[TextureLoad]', err)
+      err => console.warn('[TextureLoad]', err)
     );
-  } catch (err) {
-    console.warn('[SwitchDish]', err);
-  }
+  } catch (err) { console.warn('[SwitchDish]', err); }
 }
 
 function openBlade(dish) {
   if (!dish || STATE.bladeOpen) return;
   STATE.bladeOpen = true;
-
   el('bladeTitle').textContent    = dish.name;
   el('bladeCategory').textContent = dish.category;
   el('bladePrice').textContent    = dish.price;
   el('bladeScore').textContent    = dish.rating;
   el('bladeIngText').textContent  = dish.ingredients.join(' · ');
-
   el('sideBlade').classList.add('active');
-  el('ocrPill').dataset.status   = 'locked';
-  el('ocrStatus').textContent    = 'LOCKED';
+  el('ocrPill').dataset.status = 'locked';
+  el('ocrStatus').textContent  = 'LOCKED';
   el('ocrScanLine').classList.remove('scanning');
-
   toast(`✓ IDENTIFIED: ${dish.name}`);
-  track('dish_identified', { dish: dish.name, score: 'ocr-match' });
+  track('dish_identified', { dish: dish.name });
 }
 
 function closeBlade() {
@@ -1098,113 +978,186 @@ function closeBlade() {
 
 el('bladeClose').addEventListener('click', closeBlade);
 
-/* ─────────────────────────────────────────────────────────────────
-   TESSERACT OCR — Hardcoded JSDelivr CDN
-───────────────────────────────────────────────────────────────── */
-let tesseractWorker = null;
-let ocrScanTimer    = null;
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 7 — TESSERACT v2 OCR ENGINE
+   ───────────────────────────────────────────────────────────────
+   ROOT CAUSE OF "[object Event]" error on mobile:
+   ─────────────────────────────────────────────
+   Tesseract v4 spawns a Worker using type:"module". Mobile browsers
+   (Samsung Internet ≤14, older iOS Safari, UC Browser) block or
+   silently kill module workers loaded from CDN origins due to their
+   CORS + CSP policies. The browser fires a generic Event object on
+   the worker's onerror handler — not a real JS Error — which is why
+   the console shows "[object Event]" instead of a message string.
 
-const TESSERACT_CONFIG = {
-  langPath:   'https://cdn.jsdelivr.net/npm/tesseract.js-data@v4.0.0',
-  workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/worker.min.js',
-  corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@v4.0.0/tesseract-core.wasm.js'
+   Tesseract v2 uses classic Blob-URL workers + WASM, which bypass
+   the module-worker restriction entirely. The v2 API also separates
+   load() / loadLanguage() / initialize() into explicit async steps,
+   giving us a precise failure point in the logs.
+
+   PREWARM STRATEGY:
+   ─────────────────
+   Worker init is started on DOMContentLoaded (while the launch
+   screen is visible). The promise is stored in `ocrPrewarmPromise`.
+   When the user taps "Enter Experience", startAR() simply awaits
+   that promise instead of blocking the camera start on OCR init.
+   On a slow mobile connection, this saves 4–8 seconds.
+═══════════════════════════════════════════════════════════════ */
+let tesseractWorker    = null;
+let ocrScanTimer       = null;
+let ocrPrewarmPromise  = null;  // Holds the pre-warm Future so startAR can await it
+let workerFailCount    = 0;     // Tracks consecutive failures for memory management
+
+/*
+  ╔════════════════════════════════════════════════════════════════╗
+  ║  MANDATORY CDN PATHS — DO NOT CHANGE                          ║
+  ║                                                                ║
+  ║  These exact versions were chosen because:                    ║
+  ║  • tesseract.js@v2.4.0 — last stable v2 release, wide mobile  ║
+  ║    compat, no ES module workers                               ║
+  ║  • tesseract.js-core@v2.2.0 — matching WASM core for v2.4.0  ║
+  ║    The version pairing MUST match or WASM init will silently  ║
+  ║    fail with a binary format mismatch.                        ║
+  ╚════════════════════════════════════════════════════════════════╝
+*/
+const TESSERACT_CDN = {
+  workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@v2.4.0/dist/worker.min.js',
+  corePath:   'https://cdn.jsdelivr.net/npm/tesseract.js-core@v2.2.0/tesseract-core.wasm.js',
+  langPath:   'https://tessdata.projectnaptha.com/4.0.0'
 };
 
-async function initOCR() {
-  el('ocrStatus').textContent       = 'LOADING...';
-  el('ocrPill').dataset.status      = 'loading';
-
-  /* ── CHECKPOINT: OCR worker loading ─────────────────────────── */
-  console.log('[OCR] Worker loading from CDN...');
-  console.log('[OCR] langPath:   ' + TESSERACT_CONFIG.langPath);
-  console.log('[OCR] workerPath: ' + TESSERACT_CONFIG.workerPath);
-  console.log('[OCR] corePath:   ' + TESSERACT_CONFIG.corePath);
-
+/* ── Safely terminate any existing worker ────────────────────── */
+async function safeTerminateWorker() {
+  if (!tesseractWorker) return;
   try {
-    tesseractWorker = await Tesseract.createWorker({
-      langPath:   TESSERACT_CONFIG.langPath,
-      workerPath: TESSERACT_CONFIG.workerPath,
-      corePath:   TESSERACT_CONFIG.corePath,
-      logger: (m) => {
-        if (m.status === 'recognizing text') {
-          const progress = Math.round(m.progress * 100);
-          console.log(`[OCR] Progress: ${progress}%`);
-        } else {
-          // Log ALL Tesseract status events for diagnostics
-          console.log(`[OCR] Status: "${m.status}" progress: ${(m.progress * 100).toFixed(1)}%`);
-        }
-      }
-    });
-
-    console.log('[OCR] Worker created. Loading language pack (eng+ara)...');
-    await tesseractWorker.loadLanguage('eng+ara');
-    console.log('[OCR] Language pack loaded. Initializing...');
-    await tesseractWorker.initialize('eng+ara');
-
-    /* ── CHECKPOINT: OCR initialized ────────────────────────────── */
-    console.log('[OCR] Worker initialized successfully.');
-
-    STATE.ocrReady = true;
-    el('ocrPill').dataset.status = 'ready';
-    el('ocrStatus').textContent  = 'READY';
-    toast('✓ OCR Ready');
-
-  } catch (err) {
-    console.error('[OCR Init] FAILED:', err.message || err);
-    console.error('[OCR Init] Full error:', err);
-    el('ocrPill').dataset.status = 'error';
-    el('ocrStatus').textContent  = 'ERROR';
-    toast('OCR initialization failed');
+    console.log('[OCR] Terminating old worker to free memory...');
+    await tesseractWorker.terminate();
+    console.log('[OCR] Old worker terminated OK.');
+  } catch (e) {
+    console.warn('[OCR] Worker terminate threw (safe to ignore):', e.message || e);
+  } finally {
+    tesseractWorker = null;
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   runOCRScan — The hot path. All failure points are instrumented.
-───────────────────────────────────────────────────────────────── */
-async function runOCRScan() {
-  if (!STATE.ocrReady || !STATE.started || STATE.bladeOpen) {
-    // Silently skip — not an error, just guards
-    return;
-  }
+/* ── Build & warm a fresh v2 worker ──────────────────────────── */
+async function buildWorker() {
+  await safeTerminateWorker();
 
-  const video = el('videoFeed');
+  console.log('[OCR] ── Building Tesseract v2 worker ──');
+  console.log('[OCR] workerPath: ' + TESSERACT_CDN.workerPath);
+  console.log('[OCR] corePath:   ' + TESSERACT_CDN.corePath);
+  console.log('[OCR] langPath:   ' + TESSERACT_CDN.langPath);
 
-  /* ── Guard: video element must exist ───────────────────────── */
-  if (!video) {
-    console.error('[SCAN] CRITICAL: #videoFeed element not found in DOM!');
-    return;
-  }
+  /*
+    Tesseract v2 createWorker() options:
+    • workerPath  — URL to worker.min.js (loaded as a Blob, no CORS issue)
+    • corePath    — URL to tesseract-core.wasm.js (WASM binary)
+    • langPath    — Base URL for .traineddata language files
+    • logger      — Progress callback called with {status, progress} objects
+    • errorHandler — Called with the raw Event/Error on worker crash (this is
+                     what v4 was swallowing as "[object Event]")
+  */
+  const worker = Tesseract.createWorker({
+    workerPath:   TESSERACT_CDN.workerPath,
+    corePath:     TESSERACT_CDN.corePath,
+    langPath:     TESSERACT_CDN.langPath,
+    logger: m => {
+      // Log every Tesseract status transition so we can pinpoint hang points
+      const pct = (m.progress * 100).toFixed(1);
+      if (m.status === 'recognizing text') {
+        console.log(`[OCR] Recognizing... ${pct}%`);
+      } else {
+        console.log(`[OCR] Status: "${m.status}" ${pct}%`);
+      }
+    },
+    errorHandler: err => {
+      /*
+        This is the critical handler. In v4 this fires as a raw Event
+        (hence "[object Event]"). In v2 with explicit errorHandler we
+        can log the actual content of the event and distinguish between:
+        • Network failure (worker script 404/CORS) → err.type = 'error', no stack
+        • WASM load failure → err.message contains 'wasm'
+        • Worker crash     → err.message contains 'terminated'
+      */
+      const detail = err instanceof Error
+        ? err.message
+        : (err && err.type ? `Event.type="${err.type}" (worker script blocked by browser)` : String(err));
+      console.error(`[OCR] CRITICAL: Worker errorHandler fired: ${detail}`);
+      console.error('[OCR] If you see "Event.type=error", the worker JS was blocked at network/security level.');
+    }
+  });
 
-  /* ── Guard: video must have an active stream ────────────────── */
-  if (!video.srcObject) {
-    console.warn('[SCAN] Skipped — video.srcObject is null. Camera not yet attached.');
-    return;
-  }
+  /* ── v2 requires explicit 3-step init ───────────────────────── */
+  console.log('[OCR] Step 1/3: worker.load() — loading WASM core...');
+  await worker.load();
+  console.log('[OCR] Step 2/3: worker.loadLanguage() — fetching traineddata...');
+  await worker.loadLanguage('eng+ara');
+  console.log('[OCR] Step 3/3: worker.initialize() — initializing engine...');
+  await worker.initialize('eng+ara');
 
-  /* ── Guard: video must be in a decodable state ──────────────── */
-  // readyState < 2 means no current data (HAVE_NOTHING=0, HAVE_METADATA=1)
-  if (video.readyState < 2) {
-    console.warn(`[SCAN] Skipped — video.readyState=${video.readyState} (need ≥2). Video not yet playing.`);
-    return;
-  }
+  console.log('[OCR] Worker initialized successfully. ✓');
+  return worker;
+}
+
+/* ── initOCR: called on DOMContentLoaded for pre-warming ────── */
+async function initOCR() {
+  el('ocrStatus').textContent  = 'LOADING...';
+  el('ocrPill').dataset.status = 'loading';
+  window.__diagSetBadge('', 'WARMING...');
+
+  console.log('[OCR] Worker loading from CDN (Tesseract v2)...');
 
   try {
-    // Show scanning animation
+    tesseractWorker = await buildWorker();
+    STATE.ocrReady  = true;
+
+    el('ocrPill').dataset.status = 'ready';
+    el('ocrStatus').textContent  = 'READY';
+    window.__diagSetBadge('ready', 'READY ✓');
+    toast('✓ OCR Engine Ready');
+
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[OCR Init] FAILED: ${detail}`);
+    console.error('[OCR Init] Diagnostic: if error is "[object Event]", the CDN worker script');
+    console.error('[OCR Init] was blocked before JS could run. Check browser/network/CSP.');
+
+    STATE.ocrReady = false;
+    el('ocrPill').dataset.status = 'error';
+    el('ocrStatus').textContent  = 'ERROR';
+    window.__diagSetBadge('error', 'FAILED ✗');
+    toast('⚠ OCR load failed — see console');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 8 — OCR SCAN LOOP
+   Hot path. Every failure point is independently try/caught
+   so a single bad frame can never crash the whole loop.
+═══════════════════════════════════════════════════════════════ */
+async function runOCRScan() {
+  if (!STATE.ocrReady || !STATE.started || STATE.bladeOpen) return;
+
+  const video = el('videoFeed');
+  if (!video)              { console.error('[SCAN] CRITICAL: #videoFeed missing from DOM!'); return; }
+  if (!video.srcObject)    { console.warn('[SCAN] Skipped — no srcObject (camera not attached yet)'); return; }
+  if (video.readyState < 2){ console.warn(`[SCAN] Skipped — readyState=${video.readyState} (<2, not playing)`); return; }
+
+  try {
     el('ocrScanLine').classList.add('scanning');
     el('ocrPill').dataset.status = 'scanning';
     el('ocrStatus').textContent  = 'SCANNING';
 
-    /* ── CHECKPOINT: Frame capture ──────────────────────────────── */
+    /* ── Capture frame ──────────────────────────────────────────── */
     const vw = video.videoWidth;
     const vh = video.videoHeight;
 
-    // ── CRITICAL: Zero dimensions = iOS playsinline violation ─────
     if (vw === 0 || vh === 0) {
       console.error(
-        `[SCAN] CRITICAL: video dimensions are ${vw}x${vh}! ` +
-        'This means the browser cannot read pixel data from the video. ' +
-        'On iOS, this is caused by a missing "playsinline" attribute. ' +
-        'Confirm the <video> tag has: playsinline autoplay muted'
+        `[SCAN] CRITICAL: video dimensions ${vw}x${vh}. ` +
+        'Canvas will be blank. Root cause: missing playsinline on iOS, or video ' +
+        'stream not yet decoded. Confirm <video playsinline autoplay muted>.'
       );
       el('ocrPill').dataset.status = 'error';
       el('ocrStatus').textContent  = 'ERROR';
@@ -1212,35 +1165,64 @@ async function runOCRScan() {
       return;
     }
 
-    const canvas = document.createElement('canvas');
-    canvas.width  = vw;
-    canvas.height = vh;
-    const ctx = canvas.getContext('2d');
+    const offscreen = document.createElement('canvas');
+    offscreen.width  = vw;
+    offscreen.height = vh;
+    const ctx = offscreen.getContext('2d');
 
-    console.log(`[SCAN] Frame captured and sent to Tesseract. Canvas: ${vw}x${vh}, readyState: ${video.readyState}`);
-
-    /* ── Instrumented drawImage ─────────────────────────────────── */
+    /* ── drawImage — isolated catch (CORS / tainted canvas) ─────── */
     try {
       ctx.drawImage(video, 0, 0);
-      console.log('[SCAN] ctx.drawImage() succeeded.');
+      console.log(`[SCAN] Frame captured and sent to Tesseract. Canvas: ${vw}x${vh}, readyState: ${video.readyState}`);
     } catch (drawErr) {
       console.error(`[SCAN] ctx.drawImage() FAILED: ${drawErr.message}`);
-      console.error('[SCAN] This is often a "Tainted canvas" (CORS) or "video not ready" error.');
+      console.error('[SCAN] Cause: tainted canvas (CORS on video src) or video element not yet decoded.');
       el('ocrPill').dataset.status = 'error';
       el('ocrStatus').textContent  = 'ERROR';
       el('ocrScanLine').classList.remove('scanning');
       return;
     }
 
-    /* ── Instrumented Tesseract.recognize ───────────────────────── */
+    /* ── Tesseract v2 recognize — isolated catch ─────────────────── */
     let result;
     try {
-      result = await tesseractWorker.recognize(canvas);
+      result = await tesseractWorker.recognize(offscreen);
+      workerFailCount = 0; // reset on success
     } catch (ocrErr) {
-      console.error(`[SCAN] tesseractWorker.recognize() FAILED: ${ocrErr.message}`);
-      console.error('[SCAN] Possible causes: worker crashed, canvas is blank, out of memory.');
-      el('ocrPill').dataset.status = 'error';
-      el('ocrStatus').textContent  = 'ERROR';
+      workerFailCount++;
+      const detail = ocrErr instanceof Error ? ocrErr.message : String(ocrErr);
+      console.error(`[SCAN] tesseractWorker.recognize() FAILED (#${workerFailCount}): ${detail}`);
+
+      /*
+        MEMORY MANAGEMENT:
+        If the worker fails 3 consecutive times, it has likely been
+        killed by the mobile OS (low-memory kill / ANR on Android,
+        Jetsam on iOS). We terminate the dead worker and rebuild it
+        from scratch so the next scan attempt has a live worker.
+        This prevents the tab from needing a full reload.
+      */
+      if (workerFailCount >= 3) {
+        console.error('[OCR] 3 consecutive failures. Rebuilding worker to recover from OS kill...');
+        STATE.ocrReady = false;
+        el('ocrPill').dataset.status = 'error';
+        el('ocrStatus').textContent  = 'REBUILDING';
+        window.__diagSetBadge('', 'REBUILDING...');
+
+        try {
+          tesseractWorker  = await buildWorker();
+          STATE.ocrReady   = true;
+          workerFailCount  = 0;
+          el('ocrPill').dataset.status = 'ready';
+          el('ocrStatus').textContent  = 'READY';
+          window.__diagSetBadge('ready', 'REBUILT ✓');
+          console.log('[OCR] Worker successfully rebuilt after crash recovery.');
+        } catch (rebuildErr) {
+          console.error('[OCR] CRITICAL: Worker rebuild also failed:', rebuildErr.message || rebuildErr);
+          window.__diagSetBadge('error', 'DEAD ✗');
+          toast('⚠ OCR engine crashed — reload page');
+        }
+      }
+
       el('ocrScanLine').classList.remove('scanning');
       return;
     }
@@ -1248,9 +1230,8 @@ async function runOCRScan() {
     const text       = result.data.text;
     const confidence = result.data.confidence;
 
-    /* ── CHECKPOINT: Raw Tesseract output ───────────────────────── */
-    // Always log the raw output so we know Tesseract is actually running
-    console.log(`[RESULT] Tesseract output: "${text.substring(0, 80).replace(/\n/g,' ')}..." | Confidence: ${confidence.toFixed(1)}`);
+    /* ── RESULT checkpoint — always log raw output ───────────────── */
+    console.log(`[RESULT] Tesseract output: "${text.substring(0, 80).replace(/\n/g,' ')}" | Confidence: ${confidence.toFixed(1)}`);
 
     if (confidence > 30 && text.trim().length > 3) {
       checkTextAgainstMenu(text);
@@ -1262,9 +1243,7 @@ async function runOCRScan() {
     }
 
   } catch (err) {
-    // Catch-all for anything that slipped through
-    console.error(`[OCR Scan] Unhandled error: ${err.message}`);
-    console.error('[OCR Scan] Stack:', err.stack || '(no stack)');
+    console.error(`[OCR Scan] Unhandled outer error: ${err.message}`);
     el('ocrPill').dataset.status = 'error';
     el('ocrStatus').textContent  = 'ERROR';
     el('ocrScanLine').classList.remove('scanning');
@@ -1273,12 +1252,11 @@ async function runOCRScan() {
 
 function checkTextAgainstMenu(text) {
   const match = fuzzyMatchDish(text);
-
   if (match && match.score > CONFIG.ocr.fuzzyMatchThreshold) {
     console.log(`[Match] "${match.dish.name}" (score: ${match.score.toFixed(2)})`);
     switchDish(match.dish);
     el('parallaxCanvas').classList.add('fade-in');
-    setTimeout(() => { openBlade(match.dish); }, 300);
+    setTimeout(() => openBlade(match.dish), 300);
   } else {
     console.log(`[NoMatch] No dish found for: "${text.substring(0, 40).replace(/\n/g,' ')}..."`);
     el('ocrPill').dataset.status = 'ready';
@@ -1290,8 +1268,6 @@ function checkTextAgainstMenu(text) {
 function startOCRLoop() {
   if (ocrScanTimer) clearInterval(ocrScanTimer);
   ocrScanTimer = setInterval(runOCRScan, CONFIG.ocr.scanIntervalMs);
-
-  /* ── CHECKPOINT: Loop started ──────────────────────────────── */
   console.log(`[LOOP] Interval started. Scanning every ${CONFIG.ocr.scanIntervalMs}ms.`);
 }
 
@@ -1303,10 +1279,12 @@ function stopOCRLoop() {
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   AR INITIALIZATION
-───────────────────────────────────────────────────────────────── */
-function startAR() {
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 9 — AR INITIALIZATION
+   startAR() no longer blocks on OCR init — it awaits the
+   pre-warm promise that was started on DOMContentLoaded.
+═══════════════════════════════════════════════════════════════ */
+async function startAR() {
   STATE.started = true;
 
   el('videoFeed').classList.add('on');
@@ -1314,233 +1292,218 @@ function startAR() {
   el('arOverlay').classList.add('on');
   el('hudBar').classList.add('on');
 
-  /* ── CHECKPOINT: Camera request ─────────────────────────────── */
+  /* ── Camera guard ────────────────────────────────────────────── */
   console.log('[CAMERA] Requesting video feed...');
 
-  // Log mediaDevices availability — a common silent failure on non-HTTPS
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     console.error(
-      '[CAMERA] CRITICAL: navigator.mediaDevices.getUserMedia is NOT available! ' +
-      'This page MUST be served over HTTPS (or localhost) for camera access. ' +
-      `Current protocol: ${location.protocol}`
+      `[CAMERA] CRITICAL: navigator.mediaDevices.getUserMedia unavailable! ` +
+      `Protocol: ${location.protocol}. Camera requires HTTPS or localhost.`
     );
-    toast('Camera API not available — requires HTTPS');
+    toast('Camera API not available — needs HTTPS');
+    return;
+  }
+  console.log(`[CAMERA] mediaDevices OK. Protocol: ${location.protocol}`);
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+  } catch (err) {
+    console.error(`[CAMERA] getUserMedia FAILED: ${err.name} — ${err.message}`);
+    if (err.name === 'NotAllowedError')     console.error('[CAMERA] User denied permission or browser policy blocked.');
+    if (err.name === 'NotFoundError')       console.error('[CAMERA] No camera device found.');
+    if (err.name === 'NotReadableError')    console.error('[CAMERA] Camera already in use by another app.');
+    if (err.name === 'OverconstrainedError')console.error('[CAMERA] Constraints unsatisfiable.');
+    toast('Camera access denied');
     return;
   }
 
-  console.log(`[CAMERA] mediaDevices available. Protocol: ${location.protocol}`);
+  const video  = el('videoFeed');
+  const tracks = stream.getVideoTracks();
 
-  navigator.mediaDevices
-    .getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    })
-    .then((stream) => {
-      const video = el('videoFeed');
+  if (tracks.length > 0) {
+    const s = tracks[0].getSettings();
+    console.log(`[CAMERA] Stream obtained. Track: "${tracks[0].label}"`);
+    console.log(`[CAMERA] Negotiated: ${s.width}x${s.height} @ ${s.frameRate}fps`);
+  } else {
+    console.warn('[CAMERA] Stream has 0 video tracks!');
+  }
 
-      // Log the actual track settings the browser negotiated
-      const tracks = stream.getVideoTracks();
-      if (tracks.length > 0) {
-        const settings = tracks[0].getSettings();
-        console.log(`[CAMERA] Stream obtained. Track: "${tracks[0].label}"`);
-        console.log(`[CAMERA] Negotiated resolution: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
-      } else {
-        console.warn('[CAMERA] Stream has 0 video tracks!');
-      }
+  video.srcObject = stream;
 
-      video.srcObject = stream;
+  /* ── Instrument all video lifecycle events ───────────────────── */
+  video.addEventListener('loadstart',      () => console.log('[CAMERA] Event: loadstart'));
+  video.addEventListener('loadedmetadata', () => console.log(`[CAMERA] Event: loadedmetadata — ${video.videoWidth}x${video.videoHeight}`));
+  video.addEventListener('loadeddata',     () => console.log(`[CAMERA] Event: loadeddata — readyState: ${video.readyState}`));
+  video.addEventListener('canplay',        () => console.log(`[CAMERA] Event: canplay — readyState: ${video.readyState}`));
+  video.addEventListener('playing', () => {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (vw === 0 || vh === 0) {
+      console.error(
+        `[CAMERA] CRITICAL: Video playing but dimensions are ${vw}x${vh}! ` +
+        'iOS Safari requires playsinline to expose pixel data to canvas. ' +
+        'Every drawImage() call will return a blank frame without it.'
+      );
+    } else {
+      console.log(`[CAMERA] Video feed playing. Dimensions: ${vw}x${vh}.`);
+    }
+  });
+  video.addEventListener('stalled', () => console.warn('[CAMERA] Event: stalled'));
+  video.addEventListener('suspend', () => console.warn('[CAMERA] Event: suspend'));
+  video.addEventListener('waiting', () => console.warn('[CAMERA] Event: waiting (decode stall)'));
+  video.addEventListener('error',   () => {
+    const code = video.error?.code ?? 'unknown';
+    const msg  = video.error?.message ?? 'no message';
+    console.error(`[CAMERA] CRITICAL: Video element error! code=${code} msg="${msg}"`);
+  });
 
-      /* ── Instrument all video lifecycle events ─────────────── */
-      video.addEventListener('loadstart',      () => console.log('[CAMERA] Event: loadstart'));
-      video.addEventListener('loadedmetadata', () => {
-        console.log(`[CAMERA] Event: loadedmetadata — videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`);
+  video.onloadedmetadata = async () => {
+    console.log(`[CAMERA] onloadedmetadata — ${video.videoWidth}x${video.videoHeight}`);
+
+    try {
+      parallaxCtx = initParallax();
+      console.log('[Parallax] Scene ready (waiting for OCR match)');
+    } catch (err) {
+      console.error('[Parallax] FAILED:', err.message);
+      toast('3D initialization failed');
+      return;
+    }
+
+    /* ── Await the pre-warm promise seeded at DOMContentLoaded ─── */
+    console.log('[AR] Awaiting OCR pre-warm completion...');
+    try {
+      await ocrPrewarmPromise;
+    } catch (e) {
+      // Already logged inside initOCR(). Just note it here.
+      console.warn('[AR] Pre-warm promise rejected — OCR may not be ready.');
+    }
+
+    if (STATE.ocrReady) {
+      startOCRLoop();
+      toast('📷 Point camera at dish name');
+    } else {
+      console.error('[AR] OCR not ready after pre-warm. Loop NOT started.');
+      console.error('[AR] Check [OCR] lines above for the exact failure point.');
+      toast('⚠ OCR unavailable — see diagnostic log');
+    }
+  };
+
+  /* ── Explicit play() call with autoplay-block detection ──────── */
+  const playPromise = video.play();
+  if (playPromise !== undefined) {
+    playPromise
+      .then(()  => console.log('[CAMERA] video.play() resolved. Autoplay OK.'))
+      .catch(e  => {
+        console.error(`[CAMERA] CRITICAL: video.play() BLOCKED: ${e.message}`);
+        console.error('[CAMERA] Autoplay was rejected. Ensure <video muted> attribute is set.');
       });
-      video.addEventListener('loadeddata',     () => console.log(`[CAMERA] Event: loadeddata — readyState: ${video.readyState}`));
-      video.addEventListener('canplay',        () => console.log(`[CAMERA] Event: canplay — readyState: ${video.readyState}`));
-      video.addEventListener('playing',        () => {
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-
-        /* ── CHECKPOINT: Video playing ─────────────────────────── */
-        if (vw === 0 || vh === 0) {
-          console.error(
-            `[CAMERA] CRITICAL: Video feed playing but dimensions are ${vw}x${vh}! ` +
-            'Canvas drawImage will return empty frames. ' +
-            'Ensure <video> has playsinline attribute (iOS requirement).'
-          );
-        } else {
-          console.log(`[CAMERA] Video feed playing. Dimensions: ${vw}x${vh}.`);
-        }
-      });
-      video.addEventListener('stalled',  () => console.warn('[CAMERA] Event: stalled — video stalled!'));
-      video.addEventListener('suspend',  () => console.warn('[CAMERA] Event: suspend'));
-      video.addEventListener('waiting',  () => console.warn('[CAMERA] Event: waiting — decoding stalled'));
-      video.addEventListener('error',    (e) => {
-        const code = video.error ? video.error.code : 'unknown';
-        const msg  = video.error ? video.error.message : 'no message';
-        console.error(`[CAMERA] CRITICAL: Video element error! code=${code}, message="${msg}"`);
-      });
-
-      video.onloadedmetadata = () => {
-        console.log(`[CAMERA] onloadedmetadata — Dimensions: ${video.videoWidth}x${video.videoHeight}`);
-
-        try {
-          parallaxCtx = initParallax();
-          console.log('[Parallax] Scene ready (waiting for OCR match)');
-        } catch (err) {
-          console.error('[Parallax] FAILED:', err.message);
-          toast('3D initialization failed');
-          return;
-        }
-
-        /* ── CHECKPOINT: Kick off OCR ───────────────────────────── */
-        initOCR().then(() => {
-          if (STATE.ocrReady) {
-            startOCRLoop();
-            toast('📷 Point camera at dish name');
-          } else {
-            console.error('[AR] OCR did not reach ready state after initOCR(). Loop NOT started.');
-          }
-        }).catch((err) => {
-          console.error('[AR] initOCR() promise rejected:', err.message);
-        });
-      };
-
-      // Explicitly call play() and log the result — autoplay may be blocked
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => console.log('[CAMERA] video.play() promise resolved. Autoplay OK.'))
-          .catch((err) => {
-            console.error(`[CAMERA] CRITICAL: video.play() was BLOCKED: ${err.message}`);
-            console.error('[CAMERA] This is an autoplay policy violation. Ensure <video muted> is set.');
-          });
-      }
-    })
-    .catch((err) => {
-      console.error(`[CAMERA] getUserMedia FAILED: ${err.name} — ${err.message}`);
-      if (err.name === 'NotAllowedError') {
-        console.error('[CAMERA] User denied camera permission, or browser policy blocked it.');
-      } else if (err.name === 'NotFoundError') {
-        console.error('[CAMERA] No camera device found on this device.');
-      } else if (err.name === 'NotReadableError') {
-        console.error('[CAMERA] Camera is already in use by another app.');
-      } else if (err.name === 'OverconstrainedError') {
-        console.error('[CAMERA] Requested camera constraints could not be satisfied.');
-      }
-      toast('Camera access denied');
-    });
+  }
 
   track('ar_started');
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 10 — UI EVENT LISTENERS
+═══════════════════════════════════════════════════════════════ */
 el('portalBtn').addEventListener('click', () => {
   track('portal_tapped');
   el('launchScreen').classList.add('hidden');
   setTimeout(startAR, 240);
 });
 
-/* ─────────────────────────────────────────────────────────────────
-   UI INTERACTIONS
-───────────────────────────────────────────────────────────────── */
-
 el('videoCta').addEventListener('click', () => {
   if (!STATE.currentDish) return;
   const modal = document.createElement('div');
-  modal.style.cssText =
-    'position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;padding:20px;';
   modal.innerHTML = `
     <div style="position:relative;width:100%;max-width:600px;">
       <button onclick="this.closest('div').parentElement.remove()" style="position:absolute;top:-40px;right:0;background:transparent;border:none;color:#d4af37;font-size:24px;cursor:pointer;">✕</button>
       <video src="${STATE.currentDish.videoUrl}" controls autoplay style="width:100%;border-radius:8px;"></video>
-    </div>
-  `;
+    </div>`;
   document.body.appendChild(modal);
   track('video_opened', { dish: STATE.currentDish.name });
 });
 
 el('shareIG').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  window.open(
-    `https://www.instagram.com/?caption=${encodeURIComponent('Discover ' + STATE.currentDish.name + ' at AR Gastronomy!')}`,
-    '_blank'
-  );
+  window.open(`https://www.instagram.com/?caption=${encodeURIComponent('Discover ' + STATE.currentDish.name + ' at AR Gastronomy!')}`, '_blank');
   track('shared', { platform: 'instagram', dish: STATE.currentDish.name });
 });
-
 el('shareWA').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  window.open(
-    `https://wa.me/?text=${encodeURIComponent(STATE.currentDish.name + ' — ' + window.location.href)}`,
-    '_blank'
-  );
+  window.open(`https://wa.me/?text=${encodeURIComponent(STATE.currentDish.name + ' — ' + window.location.href)}`, '_blank');
   track('shared', { platform: 'whatsapp', dish: STATE.currentDish.name });
 });
-
 el('shareMail').addEventListener('click', () => {
   if (!STATE.currentDish) return;
-  window.open(
-    `mailto:?subject=${encodeURIComponent('Discover ' + STATE.currentDish.name)}&body=${encodeURIComponent(window.location.href)}`,
-    '_blank'
-  );
+  window.open(`mailto:?subject=${encodeURIComponent('Discover ' + STATE.currentDish.name)}&body=${encodeURIComponent(window.location.href)}`, '_blank');
   track('shared', { platform: 'email', dish: STATE.currentDish.name });
 });
 
-el('btnInfo').addEventListener('click', () =>
-  toast(`📍 ${CONFIG.restaurant.location}  ·  📞 ${CONFIG.restaurant.phone}`)
-);
+el('btnInfo').addEventListener('click', () => toast(`📍 ${CONFIG.restaurant.location}  ·  📞 ${CONFIG.restaurant.phone}`));
 el('btnMenu').addEventListener('click', () => toast('FULL MENU — Coming Soon'));
 
-document.querySelectorAll('.lang-opt').forEach((btn) => {
+document.querySelectorAll('.lang-opt').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.lang-opt').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.lang-opt').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     STATE.lang = btn.dataset.lang;
     track('lang_changed', { lang: STATE.lang });
   });
 });
 
-window.addEventListener('keydown', (e) => {
+window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && STATE.bladeOpen) closeBlade();
-  if (e.key === ' ' && !STATE.started) {
-    el('launchScreen').classList.add('hidden');
-    setTimeout(startAR, 240);
-  }
-  if (['1', '2', '3', '4'].includes(e.key) && STATE.started) {
+  if (e.key === ' ' && !STATE.started) { el('launchScreen').classList.add('hidden'); setTimeout(startAR, 240); }
+  if (['1','2','3','4'].includes(e.key) && STATE.started) {
     const d = CONFIG.menu[+e.key - 1];
-    if (d) {
-      if (STATE.bladeOpen) closeBlade();
-      setTimeout(() => {
-        switchDish(d);
-        el('parallaxCanvas').classList.add('fade-in');
-        setTimeout(() => openBlade(d), 300);
-      }, 120);
-    }
+    if (d) { if (STATE.bladeOpen) closeBlade(); setTimeout(() => { switchDish(d); el('parallaxCanvas').classList.add('fade-in'); setTimeout(() => openBlade(d), 300); }, 120); }
   }
 });
 
-/* ─────────────────────────────────────────────────────────────────
-   APP BOOT
-───────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   BLOCK 11 — APP BOOT
+   ► Pre-warm OCR NOW, while the launch screen is visible.
+     The user hasn't tapped anything yet, but we're already
+     downloading the WASM core and language pack in the background.
+     By the time they tap "Enter Experience" → camera opens, the
+     worker is typically already initialized and waiting.
+═══════════════════════════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', () => {
-  /* ── CHECKPOINT: App boot ──────────────────────────────────── */
   console.log('[BOOT] App loaded.');
-  console.log(`[BOOT] Tesseract available: ${typeof Tesseract !== 'undefined'}`);
-  console.log(`[BOOT] THREE available: ${typeof THREE !== 'undefined'}`);
-  console.log(`[BOOT] MediaDevices available: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
-  console.log(`[BOOT] Protocol: ${location.protocol} — Camera requires HTTPS or localhost.`);
+  console.log(`[BOOT] Tesseract v2 available: ${typeof Tesseract !== 'undefined'}`);
+  console.log(`[BOOT] THREE.js available: ${typeof THREE !== 'undefined'}`);
+  console.log(`[BOOT] Worker API: ${typeof Worker !== 'undefined'}`);
+  console.log(`[BOOT] MediaDevices: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
+  console.log(`[BOOT] HTTPS: ${location.protocol === 'https:' ? 'YES ✓' : 'NO ✗ (camera + workers may fail)'}`);
 
-  el('launchBg').style.backgroundImage    = `url('${CONFIG.restaurant.heroImage}')`;
-  el('portalImg').style.backgroundImage   = `url('${CONFIG.restaurant.portalImage}')`;
-  el('hudName').textContent               = CONFIG.restaurant.name.substring(0, 2).toUpperCase();
+  el('launchBg').style.backgroundImage  = `url('${CONFIG.restaurant.heroImage}')`;
+  el('portalImg').style.backgroundImage = `url('${CONFIG.restaurant.portalImage}')`;
+  el('hudName').textContent             = CONFIG.restaurant.name.substring(0, 2).toUpperCase();
 
-  track('app_loaded', { version: '3.0-ocr-diag', lang: STATE.lang });
+  track('app_loaded', { version: '3.0-tesseract-v2', lang: STATE.lang });
   toast('WELCOME TO AR GASTRONOMY');
+
+  /* ─────────────────────────────────────────────────────────────
+     PRE-WARM: Kick off OCR worker initialization immediately.
+     We store the Promise so startAR() can await it without
+     re-triggering the init sequence.
+  ───────────────────────────────────────────────────────────── */
+  console.log('[BOOT] Starting OCR pre-warm in background...');
+  ocrPrewarmPromise = initOCR();
+  ocrPrewarmPromise.catch(err => {
+    // Already handled inside initOCR, this just prevents unhandled rejection warnings
+    console.warn('[BOOT] Pre-warm promise caught:', err?.message || err);
+  });
 });
 
+/* ── Cleanup ────────────────────────────────────────────────── */
 window.addEventListener('beforeunload', () => {
   stopOCRLoop();
-  if (tesseractWorker) tesseractWorker.terminate();
+  safeTerminateWorker();
 });
 </script>
 
